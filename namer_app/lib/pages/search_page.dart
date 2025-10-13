@@ -12,25 +12,32 @@ class SearchPage extends StatefulWidget {
 
 class _SearchPageState extends State<SearchPage> {
   final TextEditingController _searchController = TextEditingController();
-  final List<bool> _searchType = <bool>[true, false];
+  final List<bool> _searchType = <bool>[false, false];
   DateTimeRange? _selectedDateRange;
   List<Report> _filteredReports = [];
+  bool _filtersActive = false;
 
   @override
   void initState() {
     super.initState();
-    _searchController.addListener(_filterReports);
-    _filterReports();
+    // _searchController.addListener(_applyFilters); // No longer needed here
   }
 
   @override
   void dispose() {
-    _searchController.removeListener(_filterReports);
+    // _searchController.removeListener(_applyFilters); // No longer needed here
     _searchController.dispose();
     super.dispose();
   }
 
-  void _filterReports() {
+  void _applyFilters() {
+    if (!_filtersActive) {
+      setState(() {
+        _filteredReports = [];
+      });
+      return;
+    }
+
     setState(() {
       _filteredReports = mockReports.where((report) {
         final searchLower = _searchController.text.toLowerCase();
@@ -38,8 +45,11 @@ class _SearchPageState extends State<SearchPage> {
         final descriptionMatch =
             report.description.toLowerCase().contains(searchLower);
 
-        final typeIndex = report.category == ReportCategory.lost ? 0 : 1;
-        final typeMatch = _searchType[typeIndex];
+        bool typeMatch = true;
+        if (_searchType.contains(true)) {
+          final typeIndex = report.category == ReportCategory.lost ? 0 : 1;
+          typeMatch = _searchType[typeIndex];
+        }
 
         bool dateMatch = true;
         if (_selectedDateRange != null) {
@@ -62,6 +72,18 @@ class _SearchPageState extends State<SearchPage> {
     });
   }
 
+  void _resetFilters() {
+    setState(() {
+      _searchController.clear();
+      for (int i = 0; i < _searchType.length; i++) {
+        _searchType[i] = false;
+      }
+      _selectedDateRange = null;
+      _filtersActive = false;
+      _filteredReports = [];
+    });
+  }
+
   Future<void> _selectDateRange(BuildContext context) async {
     final DateTimeRange? picked = await showDateRangePicker(
       context: context,
@@ -72,7 +94,8 @@ class _SearchPageState extends State<SearchPage> {
     if (picked != null && picked != _selectedDateRange) {
       setState(() {
         _selectedDateRange = picked;
-        _filterReports();
+        // _filtersActive = true; // This will be set by the search button
+        // _applyFilters(); // This will be called by the search button
       });
     }
   }
@@ -82,6 +105,13 @@ class _SearchPageState extends State<SearchPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Buscar Objeto'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.filter_alt_off_outlined),
+            onPressed: _resetFilters,
+            tooltip: 'Desactivar filtros',
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -95,6 +125,9 @@ class _SearchPageState extends State<SearchPage> {
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.search),
               ),
+              onChanged: (value) {
+                // No longer apply filters on change
+              },
             ),
             const SizedBox(height: 20),
             Row(
@@ -105,7 +138,8 @@ class _SearchPageState extends State<SearchPage> {
                       for (int i = 0; i < _searchType.length; i++) {
                         _searchType[i] = i == index;
                       }
-                      _filterReports();
+                      // _filtersActive = true; // This will be set by the search button
+                      // _applyFilters(); // This will be called by the search button
                     });
                   },
                   borderRadius: const BorderRadius.all(Radius.circular(8)),
@@ -130,63 +164,67 @@ class _SearchPageState extends State<SearchPage> {
               ],
             ),
             const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _selectedDateRange == null
-                        ? 'Ningún rango de fechas seleccionado'
-                        : 'Rango: ${_selectedDateRange!.start.toLocal().toString().split(' ')[0]} - ${_selectedDateRange!.end.toLocal().toString().split(' ')[0]}',
-                  ),
-                ),
-                TextButton.icon(
-                  icon: const Icon(Icons.calendar_today),
-                  label: const Text('Seleccionar fecha'),
-                  onPressed: () => _selectDateRange(context),
-                ),
-              ],
+            TextField(
+              readOnly: true,
+              onTap: () => _selectDateRange(context),
+              decoration: InputDecoration(
+                hintText: 'Seleccionar rango de fechas',
+                border: const OutlineInputBorder(),
+                suffixIcon: const Icon(Icons.calendar_today),
+                labelText: _selectedDateRange == null
+                    ? 'Rango de Fechas'
+                    : '${_selectedDateRange!.start.toLocal().toString().split(' ')[0]} - ${_selectedDateRange!.end.toLocal().toString().split(' ')[0]}',
+              ),
             ),
             const SizedBox(height: 20),
             Center(
               child: ElevatedButton(
-                onPressed: _filterReports,
+                onPressed: () {
+                  setState(() {
+                    _filtersActive = true;
+                  });
+                  _applyFilters();
+                },
                 child: const Text('Buscar'),
               ),
             ),
             const SizedBox(height: 20),
             Expanded(
-              child: ListView.builder(
-                itemCount: _filteredReports.length,
-                itemBuilder: (context, index) {
-                  final report = _filteredReports[index];
-                  return Card(
-                    margin: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: InkWell(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ObjectDetailPage(report: report),
+              child: _filteredReports.isEmpty && _filtersActive
+                  ? const Center(child: Text('No se encontraron resultados.'))
+                  : ListView.builder(
+                      itemCount: _filteredReports.length,
+                      itemBuilder: (context, index) {
+                        final report = _filteredReports[index];
+                        return Card(
+                          margin: const EdgeInsets.symmetric(vertical: 8.0),
+                          child: InkWell(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      ObjectDetailPage(report: report),
+                                ),
+                              );
+                            },
+                            child: ListTile(
+                              title: Text(report.title),
+                              subtitle: Text(
+                                  '${report.location} - ${report.date.toLocal().toString().split(' ')[0]}'),
+                              trailing: Icon(
+                                report.category == ReportCategory.lost
+                                    ? Icons.help_outline
+                                    : Icons.check_circle_outline,
+                                color: report.category == ReportCategory.lost
+                                    ? Colors.red
+                                    : Colors.green,
+                              ),
+                            ),
                           ),
                         );
                       },
-                      child: ListTile(
-                        title: Text(report.title),
-                        subtitle: Text(
-                            '${report.location} - ${report.date.toLocal().toString().split(' ')[0]}'),
-                        trailing: Icon(
-                          report.category == ReportCategory.lost
-                              ? Icons.help_outline
-                              : Icons.check_circle_outline,
-                          color: report.category == ReportCategory.lost
-                              ? Colors.red
-                              : Colors.green,
-                        ),
-                      ),
                     ),
-                  );
-                },
-              ),
             ),
           ],
         ),
