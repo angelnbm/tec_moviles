@@ -5,7 +5,9 @@ import 'search_page.dart';
 import 'profile_page.dart';
 
 class MainPage extends StatefulWidget {
-  const MainPage({super.key});
+  final Map<String, dynamic>? user;
+
+  const MainPage({super.key, this.user});
 
   @override
   State<MainPage> createState() => _MainPageState();
@@ -13,13 +15,18 @@ class MainPage extends StatefulWidget {
 
 class _MainPageState extends State<MainPage> {
   int _selectedIndex = 0;
+  late final List<Widget> _widgetOptions;
 
-  static final List<Widget> _widgetOptions = <Widget>[
-    GuestLandingPage(),
-    MyReportsPage(),
-    SearchPage(),
-    ProfilePage(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _widgetOptions = <Widget>[
+      GuestLandingPage(),
+      MyReportsPage(),
+      SearchPage(),
+      ProfilePage(user: widget.user), // Pasa los datos del usuario al perfil
+    ];
+  }
 
   void _onItemTapped(int index) {
     setState(() {

@@ -2,10 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:namer_app/pages/login_page.dart';
 
 class ProfilePage extends StatelessWidget {
-  const ProfilePage({super.key});
+  final Map<String, dynamic>? user;
+
+  const ProfilePage({super.key, this.user});
 
   @override
   Widget build(BuildContext context) {
+    // Usa los datos del usuario si existen, si no, muestra valores por defecto.
+    final String userName = user?['name'] ?? 'Usuario invitado';
+    final String userEmail = user?['email'] ?? 'Sin correo electrónico';
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Perfil'),
@@ -38,9 +44,14 @@ class ProfilePage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 24),
-            const Text(
-              'Usuario invitado',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            Text(
+              userName,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              userEmail,
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
             ),
             const SizedBox(height: 30),
             ElevatedButton.icon(
