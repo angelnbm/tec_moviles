@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -19,6 +22,18 @@ android {
         jvmTarget = JavaVersion.VERSION_11.toString()
     }
 
+    sourceSets {
+        getByName("main") {
+            java.srcDirs("src/main/kotlin")
+        }
+    }
+
+    val localProperties = Properties()
+    val localPropertiesFile = rootProject.file("../.env")
+    if (localPropertiesFile.exists()) {
+        localProperties.load(FileInputStream(localPropertiesFile))
+    }
+
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.namer_app"
@@ -28,6 +43,8 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = localProperties.getProperty("GOOGLE_MAPS_API_KEY") ?: "YOUR_DEFAULT_KEY"
     }
 
     buildTypes {
