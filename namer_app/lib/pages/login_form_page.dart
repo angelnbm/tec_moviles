@@ -15,6 +15,7 @@ class _LoginFormPageState extends State<LoginFormPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -34,7 +35,7 @@ class _LoginFormPageState extends State<LoginFormPage> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://10.0.2.2:5000/api/auth/login'), // URL del backend
+        Uri.parse('http://10.0.2.2:5000/api/auth/login'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'email': _emailController.text,
@@ -42,11 +43,11 @@ class _LoginFormPageState extends State<LoginFormPage> {
         }),
       );
 
-      Navigator.pop(context); // Cierra el diálogo de carga
+      Navigator.pop(context);
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
-        final user = responseData['user']; // Obtener el objeto 'user'
+        final user = responseData['user'];
         
         Navigator.pushAndRemoveUntil(
           context,
@@ -56,13 +57,19 @@ class _LoginFormPageState extends State<LoginFormPage> {
       } else {
         final error = json.decode(response.body)['message'];
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $error')),
+          SnackBar(
+            content: Text('Error: $error'),
+            backgroundColor: Colors.red[700],
+          ),
         );
       }
     } catch (e) {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudo conectar al servidor: $e')),
+        SnackBar(
+          content: Text('No se pudo conectar al servidor: $e'),
+          backgroundColor: Colors.red[700],
+        ),
       );
     }
   }
@@ -70,76 +77,261 @@ class _LoginFormPageState extends State<LoginFormPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: const BackButton(color: Colors.black),
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0),
-          child: Form(
-            key: _formKey,
-            child: ListView(
-              children: [
-                const SizedBox(height: 50),
-                SizedBox(
-                  height: 80,
-                  child: Center(child: Image.asset('assets/images/logo.png')),
-                ),
-                const SizedBox(height: 10),
-                RichText(
-                  textAlign: TextAlign.center,
-                  text: TextSpan(
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.black87),
-                    children: const [
-                      TextSpan(text: 'LOSS '),
-                      TextSpan(
-                        text: 'UTALCA',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.red.shade50,
+              Colors.white,
+              Colors.grey.shade50,
+            ],
+            stops: const [0.0, 0.5, 1.0],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(height: 20),
+                    // Logo con sombra
+                    Hero(
+                      tag: 'app_logo',
+                      child: Container(
+                        height: 120,
+                        width: 120,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.red.withOpacity(0.15),
+                              blurRadius: 20,
+                              spreadRadius: 3,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Image.asset('assets/images/logo.png'),
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 30),
+                    // Título
+                    RichText(
+                      textAlign: TextAlign.center,
+                      text: TextSpan(
+                        style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                              color: Colors.black87,
+                              fontWeight: FontWeight.w300,
+                              letterSpacing: 1.2,
+                            ),
+                        children: const [
+                          TextSpan(text: 'LOSS '),
+                          TextSpan(
+                            text: 'UTALCA',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFD32F2F),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Iniciar sesión',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 16,
+                        fontWeight: FontWeight.w400,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 50),
+                    // Campo de email
+                    TextFormField(
+                      controller: _emailController,
+                      decoration: InputDecoration(
+                        labelText: 'Correo electrónico',
+                        prefixIcon: const Icon(Icons.email_outlined, color: Color(0xFFD32F2F)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFD32F2F), width: 2),
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                      ),
+                      keyboardType: TextInputType.emailAddress,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Campo requerido';
+                        }
+                        if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
+                          return 'Correo no válido';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    // Campo de contraseña
+                    TextFormField(
+                      controller: _passwordController,
+                      decoration: InputDecoration(
+                        labelText: 'Contraseña',
+                        prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFFD32F2F)),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                            color: Colors.grey,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _obscurePassword = !_obscurePassword;
+                            });
+                          },
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFD32F2F), width: 2),
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                      ),
+                      obscureText: _obscurePassword,
+                      validator: (value) => value == null || value.isEmpty ? 'Campo requerido' : null,
+                    ),
+                    const SizedBox(height: 30),
+                    // Botón de ingresar
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _loginUser,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFD32F2F),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 3,
+                          shadowColor: const Color(0xFFD32F2F).withOpacity(0.5),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.login, size: 20),
+                            SizedBox(width: 10),
+                            Text(
+                              'Ingresar',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    // Separador
+                    Row(
+                      children: [
+                        Expanded(child: Divider(color: Colors.grey.shade400)),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Text(
+                            'o',
+                            style: TextStyle(color: Colors.grey.shade600),
+                          ),
+                        ),
+                        Expanded(child: Divider(color: Colors.grey.shade400)),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    // Botón de registro
+                    TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const RegistrationFormPage()),
+                        );
+                      },
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFFD32F2F),
+                      ),
+                      child: RichText(
+                        text: TextSpan(
+                          style: TextStyle(
+                            color: Colors.grey[700],
+                            fontSize: 15,
+                          ),
+                          children: const [
+                            TextSpan(text: '¿No tienes cuenta? '),
+                            TextSpan(
+                              text: 'Regístrate',
+                              style: TextStyle(
+                                color: Color(0xFFD32F2F),
+                                fontWeight: FontWeight.bold,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+                    // Footer
+                    Column(
+                      children: [
+                        Icon(
+                          Icons.school,
+                          color: Colors.grey[400],
+                          size: 20,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '© 2024 Universidad de Talca',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Sistema de Objetos Perdidos',
+                          style: TextStyle(
+                            color: Colors.grey[500],
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                  ],
                 ),
-                const SizedBox(height: 50),
-                TextFormField(
-                  controller: _emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Correo electrónico',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                  validator: (value) => value == null || value.isEmpty ? 'Campo requerido' : null,
-                ),
-                const SizedBox(height: 20),
-                TextFormField(
-                  controller: _passwordController,
-                  decoration: const InputDecoration(
-                    labelText: 'Contraseña',
-                    border: OutlineInputBorder(),
-                  ),
-                  obscureText: true,
-                  validator: (value) => value == null || value.isEmpty ? 'Campo requerido' : null,
-                ),
-                const SizedBox(height: 10),
-                TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const RegistrationFormPage()),
-                    );
-                  },
-                  child: const Text('¿No tienes cuenta? Regístrate'),
-                ),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: _loginUser,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: const Text('Ingresar', style: TextStyle(fontSize: 18)),
-                ),
-              ],
+              ),
             ),
           ),
         ),
