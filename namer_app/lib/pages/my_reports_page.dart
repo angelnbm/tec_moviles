@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:namer_app/data/mock_data.dart';
-import 'package:namer_app/models/report.dart';
 import 'package:namer_app/pages/object_detail_page.dart';
+import 'package:namer_app/services/api_service.dart';
 
 class MyReportsPage extends StatefulWidget {
   const MyReportsPage({super.key});
@@ -12,11 +11,57 @@ class MyReportsPage extends StatefulWidget {
 
 class _MyReportsPageState extends State<MyReportsPage> {
   String _filterStatus = 'Todos'; // Todos, Activos, Resueltos
+  List<dynamic> _myReports = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMyReports();
+  }
+
+  Future<void> _loadMyReports() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final result = await ApiService.getMyReports();
+      
+      if (result['success']) {
+        setState(() {
+          _myReports = result['data'] as List<dynamic>;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _errorMessage = result['message'];
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Error al cargar reportes: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  List<dynamic> _getFilteredReports() {
+    if (_filterStatus == 'Todos') {
+      return _myReports;
+    } else if (_filterStatus == 'Activos') {
+      return _myReports.where((r) => r['status'] == 'active').toList();
+    } else {
+      return _myReports.where((r) => r['status'] == 'resolved').toList();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // En una app real, esta lista se filtraría por el usuario actual
-    final myReports = mockReports.sublist(0, 8);
+    final filteredReports = _getFilteredReports();
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
@@ -35,7 +80,7 @@ class _MyReportsPageState extends State<MyReportsPage> {
               ),
             ),
             Text(
-              '${myReports.length} reportes registrados',
+              '${_myReports.length} reportes registrados',
               style: TextStyle(
                 fontSize: 12,
                 color: Colors.grey[600],
@@ -54,7 +99,38 @@ class _MyReportsPageState extends State<MyReportsPage> {
           ),
         ],
       ),
-      body: Column(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _errorMessage != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.error_outline, size: 60, color: Colors.red[300]),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Error al cargar reportes',
+                        style: TextStyle(fontSize: 18, color: Colors.grey[700]),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _errorMessage!,
+                        style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 24),
+                      ElevatedButton.icon(
+                        onPressed: _loadMyReports,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Reintentar'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFD32F2F),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : Column(
         children: [
           // Header con estadísticas
           Container(
@@ -75,7 +151,7 @@ class _MyReportsPageState extends State<MyReportsPage> {
               children: [
                 _buildStatCard(
                   icon: Icons.search,
-                  count: myReports.where((r) => r.category == ReportCategory.lost).length,
+                  count: _myReports.where((r) => r['category'] == 'lost').length,
                   label: 'Perdidos',
                   color: Colors.orange.shade400,
                 ),
@@ -86,7 +162,7 @@ class _MyReportsPageState extends State<MyReportsPage> {
                 ),
                 _buildStatCard(
                   icon: Icons.check_circle,
-                  count: myReports.where((r) => r.category == ReportCategory.found).length,
+                  count: _myReports.where((r) => r['category'] == 'found').length,
                   label: 'Encontrados',
                   color: Colors.green.shade400,
                 ),
@@ -97,7 +173,7 @@ class _MyReportsPageState extends State<MyReportsPage> {
                 ),
                 _buildStatCard(
                   icon: Icons.pending_actions,
-                  count: myReports.length,
+                  count: _myReports.where((r) => r['status'] == 'active').length,
                   label: 'Activos',
                   color: const Color(0xFFD32F2F),
                 ),
@@ -123,7 +199,7 @@ class _MyReportsPageState extends State<MyReportsPage> {
           ),
           // Lista de reportes
           Expanded(
-            child: myReports.isEmpty
+            child: filteredReports.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -153,13 +229,16 @@ class _MyReportsPageState extends State<MyReportsPage> {
                       ],
                     ),
                   )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    itemCount: myReports.length,
-                    itemBuilder: (context, index) {
-                      final report = myReports[index];
-                      final isLost = report.category == ReportCategory.lost;
-                      final formattedDate = "${report.date.day}/${report.date.month}/${report.date.year}";
+                : RefreshIndicator(
+                    onRefresh: _loadMyReports,
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      itemCount: filteredReports.length,
+                      itemBuilder: (context, index) {
+                        final report = filteredReports[index];
+                        final isLost = report['category'] == 'lost';
+                        final createdAt = DateTime.parse(report['createdAt']);
+                        final formattedDate = "${createdAt.day}/${createdAt.month}/${createdAt.year}";
 
                       return Container(
                         margin: const EdgeInsets.only(bottom: 12),
@@ -218,7 +297,7 @@ class _MyReportsPageState extends State<MyReportsPage> {
                                               children: [
                                                 Expanded(
                                                   child: Text(
-                                                    report.title,
+                                                    report['title'],
                                                     style: const TextStyle(
                                                       fontSize: 16,
                                                       fontWeight: FontWeight.w600,
@@ -283,7 +362,7 @@ class _MyReportsPageState extends State<MyReportsPage> {
                                                 const SizedBox(width: 4),
                                                 Expanded(
                                                   child: Text(
-                                                    report.location,
+                                                    report['location'] ?? 'Sin ubicación',
                                                     style: TextStyle(
                                                       fontSize: 12,
                                                       color: Colors.grey[700],
@@ -320,7 +399,7 @@ class _MyReportsPageState extends State<MyReportsPage> {
                                   const SizedBox(height: 12),
                                   // Descripción
                                   Text(
-                                    report.description,
+                                    report['description'],
                                     style: TextStyle(
                                       fontSize: 13,
                                       color: Colors.grey[700],
@@ -381,6 +460,7 @@ class _MyReportsPageState extends State<MyReportsPage> {
                       );
                     },
                   ),
+                ),
           ),
         ],
       ),
@@ -535,7 +615,7 @@ class _MyReportsPageState extends State<MyReportsPage> {
     );
   }
 
-  void _showEditDialog(Report report) {
+  void _showEditDialog(dynamic report) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -555,7 +635,7 @@ class _MyReportsPageState extends State<MyReportsPage> {
               const Text('Editar reporte'),
             ],
           ),
-          content: Text('¿Deseas editar el reporte "${report.title}"?'),
+          content: Text('¿Deseas editar el reporte "${report['title']}"?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -583,7 +663,7 @@ class _MyReportsPageState extends State<MyReportsPage> {
     );
   }
 
-  void _showResolveDialog(Report report) {
+  void _showResolveDialog(dynamic report) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -604,7 +684,7 @@ class _MyReportsPageState extends State<MyReportsPage> {
             ],
           ),
           content: Text(
-            '¿Deseas marcar el reporte "${report.title}" como resuelto?\n\nEsta acción no se puede deshacer.',
+            '¿Deseas marcar el reporte "${report['title']}" como resuelto?\n\nEsta acción no se puede deshacer.',
           ),
           actions: [
             TextButton(
@@ -612,20 +692,38 @@ class _MyReportsPageState extends State<MyReportsPage> {
               child: const Text('Cancelar'),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Row(
-                      children: [
-                        Icon(Icons.check_circle, color: Colors.white),
-                        SizedBox(width: 12),
-                        Text('Reporte marcado como resuelto'),
-                      ],
-                    ),
-                    backgroundColor: Colors.green,
-                  ),
+                
+                // Llamar a la API para marcar como resuelto
+                final result = await ApiService.updateReport(
+                  reportId: report['_id'],
+                  status: 'resolved',
                 );
+                
+                if (result['success']) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Row(
+                        children: [
+                          Icon(Icons.check_circle, color: Colors.white),
+                          SizedBox(width: 12),
+                          Text('Reporte marcado como resuelto'),
+                        ],
+                      ),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                  // Recargar la lista
+                  _loadMyReports();
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: ${result['message']}'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green.shade600,

@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:namer_app/pages/main_page.dart';
 import 'package:namer_app/pages/registration_form_page.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:namer_app/services/api_service.dart';
 
 class LoginFormPage extends StatefulWidget {
   const LoginFormPage({super.key});
@@ -34,20 +33,15 @@ class _LoginFormPageState extends State<LoginFormPage> {
     );
 
     try {
-      final response = await http.post(
-        Uri.parse('http://10.0.2.2:5000/api/auth/login'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'email': _emailController.text,
-          'password': _passwordController.text,
-        }),
+      final result = await ApiService.login(
+        email: _emailController.text,
+        password: _passwordController.text,
       );
 
       Navigator.pop(context);
 
-      if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-        final user = responseData['user'];
+      if (result['success']) {
+        final user = result['data']['user'];
         
         Navigator.pushAndRemoveUntil(
           context,
@@ -55,10 +49,9 @@ class _LoginFormPageState extends State<LoginFormPage> {
           (route) => false,
         );
       } else {
-        final error = json.decode(response.body)['message'];
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: $error'),
+            content: Text('Error: ${result['message']}'),
             backgroundColor: Colors.red[700],
           ),
         );
@@ -67,7 +60,7 @@ class _LoginFormPageState extends State<LoginFormPage> {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('No se pudo conectar al servidor: $e'),
+          content: Text('Error inesperado: $e'),
           backgroundColor: Colors.red[700],
         ),
       );

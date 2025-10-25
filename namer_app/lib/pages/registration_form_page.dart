@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:namer_app/services/api_service.dart';
+import 'package:namer_app/pages/main_page.dart';
 
 class RegistrationFormPage extends StatefulWidget {
   const RegistrationFormPage({super.key});
@@ -42,33 +42,36 @@ class _RegistrationFormPageState extends State<RegistrationFormPage> {
     );
 
     try {
-      final response = await http.post(
-        Uri.parse('http://10.0.2.2:5000/api/auth/register'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'name': _nameController.text,
-          'lastName': _lastNameController.text,
-          'rut': _rutController.text,
-          'email': _emailController.text,
-          'password': _passwordController.text,
-        }),
+      final result = await ApiService.register(
+        name: _nameController.text,
+        lastName: _lastNameController.text,
+        rut: _rutController.text,
+        email: _emailController.text,
+        password: _passwordController.text,
       );
 
       Navigator.pop(context);
 
-      if (response.statusCode == 201) {
+      if (result['success']) {
+        final user = result['data']['user'];
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Registro exitoso. Ahora puedes iniciar sesión.'),
+            content: const Text('Registro exitoso. Bienvenido!'),
             backgroundColor: Colors.green[700],
           ),
         );
-        Navigator.pop(context);
+        
+        // Navigate directly to MainPage with the user data
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => MainPage(user: user)),
+          (route) => false,
+        );
       } else {
-        final error = json.decode(response.body)['message'];
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: $error'),
+            content: Text('Error: ${result['message']}'),
             backgroundColor: Colors.red[700],
           ),
         );
@@ -77,7 +80,7 @@ class _RegistrationFormPageState extends State<RegistrationFormPage> {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('No se pudo conectar al servidor: $e'),
+          content: Text('Error inesperado: $e'),
           backgroundColor: Colors.red[700],
         ),
       );

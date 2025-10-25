@@ -1,9 +1,8 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:namer_app/data/mock_data.dart';
-import 'package:namer_app/models/report.dart';
 import 'package:namer_app/pages/new_report_page.dart';
 import 'package:namer_app/pages/object_detail_page.dart';
+import 'package:namer_app/services/api_service.dart';
 
 class GuestLandingPage extends StatefulWidget {
   const GuestLandingPage({super.key});
@@ -16,13 +15,46 @@ class _GuestLandingPageState extends State<GuestLandingPage> {
   int _currentPage = 1;
   final int _itemsPerPage = 6;
   late int _totalPages;
-  late List<Report> _reports;
+  List<dynamic> _reports = [];
+  bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _reports = mockReports;
-    _totalPages = (_reports.length / _itemsPerPage).ceil();
+    _loadReports();
+  }
+
+  Future<void> _loadReports() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final result = await ApiService.getAllReports();
+      
+      if (result['success']) {
+        setState(() {
+          _reports = result['data'] as List<dynamic>;
+          _totalPages = (_reports.length / _itemsPerPage).ceil();
+          if (_totalPages == 0) _totalPages = 1;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _errorMessage = result['message'];
+          _isLoading = false;
+          _totalPages = 1;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Error al cargar reportes: $e';
+        _isLoading = false;
+        _totalPages = 1;
+      });
+    }
   }
 
   void _goToPage(int page) {
@@ -35,7 +67,7 @@ class _GuestLandingPageState extends State<GuestLandingPage> {
   Widget build(BuildContext context) {
     final int startIndex = (_currentPage - 1) * _itemsPerPage;
     final int endIndex = min(startIndex + _itemsPerPage, _reports.length);
-    final List<Report> paginatedReports = _reports.sublist(startIndex, endIndex);
+    final List<dynamic> paginatedReports = _reports.sublist(startIndex, endIndex);
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
@@ -98,7 +130,38 @@ class _GuestLandingPageState extends State<GuestLandingPage> {
           ],
         ),
       ),
-      body: Column(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _errorMessage != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.error_outline, size: 60, color: Colors.red[300]),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Error al cargar reportes',
+                        style: TextStyle(fontSize: 18, color: Colors.grey[700]),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _errorMessage!,
+                        style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 24),
+                      ElevatedButton.icon(
+                        onPressed: _loadReports,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Reintentar'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFD32F2F),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : Column(
         children: [
           // Header con estadísticas
           Container(
@@ -119,7 +182,7 @@ class _GuestLandingPageState extends State<GuestLandingPage> {
               children: [
                 _buildStatCard(
                   icon: Icons.search,
-                  count: _reports.where((r) => r.category == ReportCategory.lost).length,
+                  count: _reports.where((r) => r['category'] == 'lost').length,
                   label: 'Perdidos',
                   color: Colors.orange.shade400,
                 ),
@@ -130,7 +193,7 @@ class _GuestLandingPageState extends State<GuestLandingPage> {
                 ),
                 _buildStatCard(
                   icon: Icons.check_circle,
-                  count: _reports.where((r) => r.category == ReportCategory.found).length,
+                  count: _reports.where((r) => r['category'] == 'found').length,
                   label: 'Encontrados',
                   color: Colors.green.shade400,
                 ),
@@ -178,8 +241,9 @@ class _GuestLandingPageState extends State<GuestLandingPage> {
                     itemCount: paginatedReports.length,
                     itemBuilder: (context, index) {
                       final report = paginatedReports[index];
-                      final isLost = report.category == ReportCategory.lost;
-                      final formattedDate = "${report.date.day}/${report.date.month}/${report.date.year}";
+                      final isLost = report['category'] == 'lost';
+                      final createdAt = DateTime.parse(report['createdAt']);
+                      final formattedDate = "${createdAt.day}/${createdAt.month}/${createdAt.year}";
 
                       return Container(
                         margin: const EdgeInsets.only(bottom: 12),
@@ -234,7 +298,7 @@ class _GuestLandingPageState extends State<GuestLandingPage> {
                                           children: [
                                             Expanded(
                                               child: Text(
-                                                report.title,
+                                                report['title'],
                                                 style: const TextStyle(
                                                   fontSize: 16,
                                                   fontWeight: FontWeight.w600,
@@ -299,7 +363,7 @@ class _GuestLandingPageState extends State<GuestLandingPage> {
                                             const SizedBox(width: 4),
                                             Expanded(
                                               child: Text(
-                                                report.location,
+                                                report['location'] ?? 'Sin ubicación',
                                                 style: TextStyle(
                                                   fontSize: 13,
                                                   color: Colors.grey[700],
@@ -365,11 +429,16 @@ class _GuestLandingPageState extends State<GuestLandingPage> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
+                  onPressed: () async {
+                    final result = await Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => const NewReportPage()),
                     );
+                    
+                    // Si se creó un reporte exitosamente, recargar la lista
+                    if (result == true) {
+                      _loadReports();
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFD32F2F),

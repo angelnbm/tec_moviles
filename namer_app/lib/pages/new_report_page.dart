@@ -4,6 +4,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:location/location.dart';
 import 'package:namer_app/models/report.dart';
+import 'package:namer_app/services/api_service.dart';
 
 class NewReportPage extends StatefulWidget {
   const NewReportPage({super.key});
@@ -164,11 +165,61 @@ class _NewReportPageState extends State<NewReportPage> {
     );
   }
 
-  void _submitReport() {
-    if (_formKey.currentState!.validate()) {
-      // Lógica para guardar el reporte
-      _showSnackBar('Reporte creado exitosamente', Colors.green);
-      Navigator.pop(context);
+  Future<void> _submitReport() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    // Validate location is provided
+    if (_locationController.text.isEmpty) {
+      _showSnackBar('Por favor selecciona una ubicación', Colors.orange);
+      return;
+    }
+
+    // Parse coordinates from location text
+    final coords = _locationController.text.split(',');
+    if (coords.length != 2) {
+      _showSnackBar('Formato de ubicación inválido', Colors.red);
+      return;
+    }
+
+    final latitude = double.tryParse(coords[0].trim());
+    final longitude = double.tryParse(coords[1].trim());
+
+    if (latitude == null || longitude == null) {
+      _showSnackBar('Coordenadas inválidas', Colors.red);
+      return;
+    }
+
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final result = await ApiService.createReport(
+        title: _titleController.text,
+        description: _descriptionController.text,
+        category: _selectedCategory == ReportCategory.found ? 'found' : 'lost',
+        location: 'Universidad de Talca', // You can make this more specific
+        latitude: latitude,
+        longitude: longitude,
+        imageUrl: _selectedImage?.path, // In a real app, you'd upload this to a server first
+      );
+
+      Navigator.pop(context); // Close loading dialog
+
+      if (result['success']) {
+        _showSnackBar('Reporte creado exitosamente', Colors.green);
+        // Wait a bit for the snackbar to show
+        await Future.delayed(const Duration(milliseconds: 500));
+        Navigator.pop(context, true); // Return true to indicate success
+      } else {
+        _showSnackBar('Error: ${result['message']}', Colors.red);
+      }
+    } catch (e) {
+      Navigator.pop(context); // Close loading dialog
+      _showSnackBar('Error inesperado: $e', Colors.red);
     }
   }
 

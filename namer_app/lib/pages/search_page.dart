@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:namer_app/data/mock_data.dart';
-import 'package:namer_app/models/report.dart';
 import 'package:namer_app/pages/object_detail_page.dart';
+import 'package:namer_app/services/api_service.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -14,12 +13,40 @@ class _SearchPageState extends State<SearchPage> {
   final TextEditingController _searchController = TextEditingController();
   final List<bool> _searchType = <bool>[false, false];
   DateTimeRange? _selectedDateRange;
-  List<Report> _filteredReports = [];
+  List<dynamic> _allReports = [];
+  List<dynamic> _filteredReports = [];
   bool _filtersActive = false;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    _loadReports();
+  }
+
+  Future<void> _loadReports() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final result = await ApiService.getAllReports();
+      
+      if (result['success']) {
+        setState(() {
+          _allReports = result['data'] as List<dynamic>;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -37,22 +64,21 @@ class _SearchPageState extends State<SearchPage> {
     }
 
     setState(() {
-      _filteredReports = mockReports.where((report) {
+      _filteredReports = _allReports.where((report) {
         final searchLower = _searchController.text.toLowerCase();
-        final titleMatch = report.title.toLowerCase().contains(searchLower);
+        final titleMatch = report['title'].toLowerCase().contains(searchLower);
         final descriptionMatch =
-            report.description.toLowerCase().contains(searchLower);
+            report['description'].toLowerCase().contains(searchLower);
 
         bool typeMatch = true;
         if (_searchType.contains(true)) {
-          final typeIndex = report.category == ReportCategory.lost ? 0 : 1;
+          final typeIndex = report['category'] == 'lost' ? 0 : 1;
           typeMatch = _searchType[typeIndex];
         }
 
         bool dateMatch = true;
         if (_selectedDateRange != null) {
-          final reportDate =
-              DateTime(report.date.year, report.date.month, report.date.day);
+          final reportDate = DateTime.parse(report['createdAt']);
           final startDate = DateTime(_selectedDateRange!.start.year,
               _selectedDateRange!.start.month, _selectedDateRange!.start.day);
           final endDate = DateTime(_selectedDateRange!.end.year,
@@ -365,8 +391,9 @@ class _SearchPageState extends State<SearchPage> {
                         itemCount: _filteredReports.length,
                         itemBuilder: (context, index) {
                           final report = _filteredReports[index];
-                          final isLost = report.category == ReportCategory.lost;
-                          final formattedDate = "${report.date.day}/${report.date.month}/${report.date.year}";
+                          final isLost = report['category'] == 'lost';
+                          final createdAt = DateTime.parse(report['createdAt']);
+                          final formattedDate = "${createdAt.day}/${createdAt.month}/${createdAt.year}";
 
                           return Container(
                             margin: const EdgeInsets.only(bottom: 12),
@@ -419,7 +446,7 @@ class _SearchPageState extends State<SearchPage> {
                                               children: [
                                                 Expanded(
                                                   child: Text(
-                                                    report.title,
+                                                    report['title'],
                                                     style: const TextStyle(
                                                       fontSize: 16,
                                                       fontWeight: FontWeight.w600,
@@ -484,7 +511,7 @@ class _SearchPageState extends State<SearchPage> {
                                                 const SizedBox(width: 4),
                                                 Expanded(
                                                   child: Text(
-                                                    report.location,
+                                                    report['location'] ?? 'Sin ubicación',
                                                     style: TextStyle(
                                                       fontSize: 13,
                                                       color: Colors.grey[700],
