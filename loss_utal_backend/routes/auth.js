@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const auth = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -34,6 +35,7 @@ router.post('/register', async (req, res) => {
         lastName: user.lastName,
         rut: user.rut,
         email: user.email,
+        profileImage: user.profileImage,
       },
     });
   } catch (err) {
@@ -67,10 +69,56 @@ router.post('/login', async (req, res) => {
         lastName: user.lastName,
         rut: user.rut,
         email: user.email,
+        profileImage: user.profileImage,
       },
     });
   } catch (err) {
     console.error('Error en login:', err);
+    res.status(500).json({ msg: 'Error en el servidor' });
+  }
+});
+
+// Obtener perfil del usuario autenticado
+router.get('/profile', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('-password');
+    if (!user) {
+      return res.status(404).json({ msg: 'Usuario no encontrado' });
+    }
+    res.json(user);
+  } catch (err) {
+    console.error('Error al obtener perfil:', err);
+    res.status(500).json({ msg: 'Error en el servidor' });
+  }
+});
+
+// Actualizar perfil del usuario
+router.put('/profile', auth, async (req, res) => {
+  const { name, lastName, profileImage } = req.body;
+  
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ msg: 'Usuario no encontrado' });
+    }
+
+    // Actualizar campos si se proporcionan
+    if (name) user.name = name;
+    if (lastName) user.lastName = lastName;
+    if (profileImage !== undefined) user.profileImage = profileImage;
+
+    await user.save();
+
+    res.json({
+      id: user.id,
+      name: user.name,
+      lastName: user.lastName,
+      rut: user.rut,
+      email: user.email,
+      profileImage: user.profileImage,
+    });
+  } catch (err) {
+    console.error('Error al actualizar perfil:', err);
     res.status(500).json({ msg: 'Error en el servidor' });
   }
 });

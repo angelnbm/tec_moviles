@@ -1,17 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:namer_app/models/report.dart';
+import 'package:namer_app/widgets/profile_avatar.dart';
 
 class ObjectDetailPage extends StatelessWidget {
-  final Report report;
+  final dynamic report;
 
   const ObjectDetailPage({super.key, required this.report});
 
   @override
   Widget build(BuildContext context) {
-    final isLost = report.category == ReportCategory.lost;
+    final isLost = report['category'] == 'lost';
     final reportType = isLost ? 'Objeto Perdido' : 'Objeto Encontrado';
-    final formattedDate = "${report.date.day}/${report.date.month}/${report.date.year}";
+    final createdAt = DateTime.parse(report['createdAt']);
+    final formattedDate = "${createdAt.day}/${createdAt.month}/${createdAt.year}";
     final statusColor = isLost ? Colors.orange : Colors.green;
+    
+    // Usuario information
+    final userId = report['userId'];
+    final userName = userId != null && userId is Map ? '${userId['name']} ${userId['lastName']}' : 'Usuario UTALCA';
+    final userProfileImage = userId != null && userId is Map ? userId['profileImage'] : null;
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
@@ -23,7 +29,7 @@ class ObjectDetailPage extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          report.title,
+          report['title'],
           style: const TextStyle(
             color: Colors.black87,
             fontSize: 18,
@@ -155,7 +161,7 @@ class ObjectDetailPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  report.description,
+                  report['description'],
                   style: TextStyle(
                     fontSize: 15,
                     color: Colors.grey[700],
@@ -232,7 +238,7 @@ class ObjectDetailPage extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            report.location,
+                            report['location'] ?? 'Sin ubicación',
                             style: const TextStyle(
                               fontSize: 15,
                               color: Colors.black87,
@@ -348,33 +354,20 @@ class ObjectDetailPage extends StatelessWidget {
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: const Color(0xFFD32F2F),
-                          width: 2,
-                        ),
-                      ),
-                      child: CircleAvatar(
-                        radius: 28,
-                        backgroundColor: Colors.grey[200],
-                        child: const Icon(
-                          Icons.person,
-                          size: 32,
-                          color: Color(0xFFD32F2F),
-                        ),
-                      ),
+                    ProfileAvatar(
+                      profileImageBase64: userProfileImage,
+                      radius: 28,
+                      borderColor: const Color(0xFFD32F2F),
+                      borderWidth: 2,
                     ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Usuario UTALCA',
-                            style: TextStyle(
+                          Text(
+                            userName,
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
                               color: Colors.black87,

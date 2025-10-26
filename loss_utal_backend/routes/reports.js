@@ -8,7 +8,7 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   try {
     const reports = await Report.find()
-      .populate('userId', 'name lastName email')
+      .populate('userId', 'name lastName email profileImage')
       .sort({ createdAt: -1 });
     res.json(reports);
   } catch (err) {
