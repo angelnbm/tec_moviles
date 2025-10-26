@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:namer_app/widgets/profile_avatar.dart';
+import 'package:namer_app/widgets/report_image.dart';
 
 class ObjectDetailPage extends StatelessWidget {
   final dynamic report;
@@ -59,19 +60,16 @@ class ObjectDetailPage extends StatelessWidget {
       ),
       body: ListView(
         children: [
-          // Imagen del objeto
-          Container(
+          // Imagen del objeto con badge
+          SizedBox(
             height: 300,
             width: double.infinity,
-            color: Colors.grey[300],
             child: Stack(
+              fit: StackFit.expand,
               children: [
-                Center(
-                  child: Icon(
-                    Icons.image_outlined,
-                    size: 100,
-                    color: Colors.grey[400],
-                  ),
+                ReportImage(
+                  imageBase64: report['imageUrl'],
+                  fit: BoxFit.cover,
                 ),
                 // Badge de estado en la esquina
                 Positioned(

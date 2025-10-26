@@ -1,10 +1,12 @@
-import 'dart:io';
+import 'dart:typed_data';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:location/location.dart';
 import 'package:namer_app/models/report.dart';
 import 'package:namer_app/services/api_service.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 class NewReportPage extends StatefulWidget {
   const NewReportPage({super.key});
@@ -19,7 +21,7 @@ class _NewReportPageState extends State<NewReportPage> {
   final _descriptionController = TextEditingController();
   final _locationController = TextEditingController();
   ReportCategory _selectedCategory = ReportCategory.found;
-  File? _selectedImage;
+  Uint8List? _selectedImageBytes;
 
   @override
   void dispose() {
@@ -148,9 +150,23 @@ class _NewReportPageState extends State<NewReportPage> {
     );
 
     if (pickedFile != null) {
-      setState(() {
-        _selectedImage = File(pickedFile.path);
-      });
+      try {
+        final bytes = await pickedFile.readAsBytes();
+        
+        // Comprimir la imagen
+        final compressedBytes = await FlutterImageCompress.compressWithList(
+          bytes,
+          minWidth: 300,
+          minHeight: 300,
+          quality: 60,
+        );
+        
+        setState(() {
+          _selectedImageBytes = Uint8List.fromList(compressedBytes);
+        });
+      } catch (e) {
+        _showSnackBar('Error al procesar imagen: $e', Colors.red);
+      }
     }
   }
 
@@ -197,6 +213,12 @@ class _NewReportPageState extends State<NewReportPage> {
     );
 
     try {
+      // Preparar la imagen en base64 si existe
+      String? imageBase64;
+      if (_selectedImageBytes != null) {
+        imageBase64 = 'data:image/jpeg;base64,${base64Encode(_selectedImageBytes!)}';
+      }
+
       final result = await ApiService.createReport(
         title: _titleController.text,
         description: _descriptionController.text,
@@ -204,7 +226,7 @@ class _NewReportPageState extends State<NewReportPage> {
         location: 'Universidad de Talca', // You can make this more specific
         latitude: latitude,
         longitude: longitude,
-        imageUrl: _selectedImage?.path, // In a real app, you'd upload this to a server first
+        imageUrl: imageBase64,
       );
 
       Navigator.pop(context); // Close loading dialog
@@ -555,7 +577,7 @@ class _NewReportPageState extends State<NewReportPage> {
                     ],
                   ),
                   const SizedBox(height: 20),
-                  if (_selectedImage != null)
+                  if (_selectedImageBytes != null)
                     Container(
                       height: 200,
                       width: double.infinity,
@@ -568,7 +590,7 @@ class _NewReportPageState extends State<NewReportPage> {
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                          Image.file(_selectedImage!, fit: BoxFit.cover),
+                          Image.memory(_selectedImageBytes!, fit: BoxFit.cover),
                           Positioned(
                             top: 8,
                             right: 8,
@@ -579,7 +601,7 @@ class _NewReportPageState extends State<NewReportPage> {
                               ),
                               onPressed: () {
                                 setState(() {
-                                  _selectedImage = null;
+                                  _selectedImageBytes = null;
                                 });
                               },
                             ),
@@ -591,8 +613,8 @@ class _NewReportPageState extends State<NewReportPage> {
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: _pickImage,
-                      icon: Icon(_selectedImage == null ? Icons.add_photo_alternate : Icons.edit),
-                      label: Text(_selectedImage == null ? 'Agregar imagen' : 'Cambiar imagen'),
+                      icon: Icon(_selectedImageBytes == null ? Icons.add_photo_alternate : Icons.edit),
+                      label: Text(_selectedImageBytes == null ? 'Agregar imagen' : 'Cambiar imagen'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFFD32F2F),
                         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -600,7 +622,7 @@ class _NewReportPageState extends State<NewReportPage> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         side: BorderSide(
-                          color: _selectedImage == null
+                          color: _selectedImageBytes == null
                               ? Colors.grey.shade400
                               : const Color(0xFFD32F2F),
                         ),

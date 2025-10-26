@@ -10,6 +10,12 @@ router.get('/', async (req, res) => {
     const reports = await Report.find()
       .populate('userId', 'name lastName email profileImage')
       .sort({ createdAt: -1 });
+    
+    console.log(`📋 Obteniendo ${reports.length} reportes`);
+    reports.forEach((report, index) => {
+      console.log(`  ${index + 1}. ${report.title} - hasImage: ${!!report.imageUrl}, imageLength: ${report.imageUrl ? report.imageUrl.length : 0}`);
+    });
+    
     res.json(reports);
   } catch (err) {
     console.error(err);
@@ -33,6 +39,14 @@ router.get('/my-reports', auth, async (req, res) => {
 router.post('/', auth, async (req, res) => {
   const { title, description, category, location, latitude, longitude, imageUrl } = req.body;
   
+  console.log('📝 Creando nuevo reporte:', {
+    title,
+    category,
+    location,
+    hasImage: !!imageUrl,
+    imageUrlLength: imageUrl ? imageUrl.length : 0
+  });
+  
   try {
     const newReport = new Report({
       title,
@@ -46,9 +60,10 @@ router.post('/', auth, async (req, res) => {
     });
 
     const report = await newReport.save();
+    console.log('✅ Reporte guardado con ID:', report._id);
     res.status(201).json(report);
   } catch (err) {
-    console.error(err);
+    console.error('❌ Error al guardar reporte:', err);
     res.status(500).json({ message: 'Error en el servidor' });
   }
 });

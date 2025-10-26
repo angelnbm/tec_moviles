@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:namer_app/pages/object_detail_page.dart';
 import 'package:namer_app/services/api_service.dart';
+import 'package:namer_app/widgets/report_image.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -420,18 +421,11 @@ class _SearchPageState extends State<SearchPage> {
                                   padding: const EdgeInsets.all(16),
                                   child: Row(
                                     children: [
-                                      Container(
+                                      ReportImage(
+                                        imageBase64: report['imageUrl'],
                                         width: 70,
                                         height: 70,
-                                        decoration: BoxDecoration(
-                                          color: Colors.grey[200],
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Icon(
-                                          Icons.image_outlined,
-                                          size: 32,
-                                          color: Colors.grey[400],
-                                        ),
+                                        borderRadius: BorderRadius.circular(12),
                                       ),
                                       const SizedBox(width: 16),
                                       Expanded(

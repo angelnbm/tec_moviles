@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:namer_app/pages/object_detail_page.dart';
 import 'package:namer_app/pages/edit_report_page.dart';
 import 'package:namer_app/services/api_service.dart';
+import 'package:namer_app/widgets/report_image.dart';
 
 class MyReportsPage extends StatefulWidget {
   const MyReportsPage({super.key});
@@ -275,18 +276,11 @@ class _MyReportsPageState extends State<MyReportsPage> {
                                   Row(
                                     children: [
                                       // Imagen
-                                      Container(
+                                      ReportImage(
+                                        imageBase64: report['imageUrl'],
                                         width: 70,
                                         height: 70,
-                                        decoration: BoxDecoration(
-                                          color: Colors.grey[200],
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Icon(
-                                          Icons.image_outlined,
-                                          size: 32,
-                                          color: Colors.grey[400],
-                                        ),
+                                        borderRadius: BorderRadius.circular(12),
                                       ),
                                       const SizedBox(width: 16),
                                       // Información

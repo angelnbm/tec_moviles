@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:namer_app/services/api_service.dart';
+import 'package:namer_app/widgets/report_image.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:typed_data';
+import 'dart:convert';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 class EditReportPage extends StatefulWidget {
   final Map<String, dynamic> report;
@@ -16,7 +21,10 @@ class _EditReportPageState extends State<EditReportPage> {
   late TextEditingController _descriptionController;
   late TextEditingController _locationController;
   late String _category;
+  String? _currentImageUrl;
+  Uint8List? _newImageBytes;
   bool _isLoading = false;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -25,6 +33,7 @@ class _EditReportPageState extends State<EditReportPage> {
     _descriptionController = TextEditingController(text: widget.report['description']);
     _locationController = TextEditingController(text: widget.report['location'] ?? '');
     _category = widget.report['category'];
+    _currentImageUrl = widget.report['imageUrl'];
   }
 
   @override
@@ -33,6 +42,92 @@ class _EditReportPageState extends State<EditReportPage> {
     _descriptionController.dispose();
     _locationController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      if (pickedFile != null) {
+        // Leer los bytes de la imagen
+        final bytes = await pickedFile.readAsBytes();
+        
+        // Comprimir la imagen
+        final compressedBytes = await FlutterImageCompress.compressWithList(
+          bytes,
+          minWidth: 300,
+          minHeight: 300,
+          quality: 60,
+        );
+
+        setState(() {
+          _newImageBytes = Uint8List.fromList(compressedBytes);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al seleccionar imagen: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showImageSourceDialog() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.photo_library, color: Color(0xFFD32F2F)),
+                  title: const Text('Seleccionar de galería'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImage(ImageSource.gallery);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.camera_alt, color: Color(0xFFD32F2F)),
+                  title: const Text('Tomar foto'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImage(ImageSource.camera);
+                  },
+                ),
+                if (_newImageBytes != null || _currentImageUrl != null)
+                  ListTile(
+                    leading: const Icon(Icons.delete, color: Colors.red),
+                    title: const Text('Eliminar imagen'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      setState(() {
+                        _newImageBytes = null;
+                        _currentImageUrl = null;
+                      });
+                    },
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _updateReport() async {
@@ -45,10 +140,19 @@ class _EditReportPageState extends State<EditReportPage> {
     });
 
     try {
+      // Preparar la imagen si hay una nueva
+      String? imageToSend;
+      if (_newImageBytes != null) {
+        imageToSend = 'data:image/jpeg;base64,${base64Encode(_newImageBytes!)}';
+      } else if (_currentImageUrl != null && _currentImageUrl!.isNotEmpty) {
+        imageToSend = _currentImageUrl;
+      }
+
       final result = await ApiService.updateReport(
         reportId: widget.report['_id'],
         title: _titleController.text.trim(),
         description: _descriptionController.text.trim(),
+        imageUrl: imageToSend,
       );
 
       if (mounted) {
@@ -229,6 +333,134 @@ class _EditReportPageState extends State<EditReportPage> {
                             ),
                           ),
                         ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    // Imagen del objeto
+                    Text(
+                      'Imagen del objeto',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[800],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    InkWell(
+                      onTap: _showImageSourceDialog,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        height: 200,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: _newImageBytes != null
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    Image.memory(
+                                      _newImageBytes!,
+                                      fit: BoxFit.cover,
+                                    ),
+                                    Positioned(
+                                      top: 8,
+                                      right: 8,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withOpacity(0.6),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.edit, color: Colors.white, size: 16),
+                                            SizedBox(width: 4),
+                                            Text(
+                                              'Cambiar',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : _currentImageUrl != null && _currentImageUrl!.isNotEmpty
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Stack(
+                                      fit: StackFit.expand,
+                                      children: [
+                                        ReportImage(
+                                          imageBase64: _currentImageUrl,
+                                          fit: BoxFit.cover,
+                                        ),
+                                        Positioned(
+                                          top: 8,
+                                          right: 8,
+                                          child: Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withOpacity(0.6),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: const Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(Icons.edit, color: Colors.white, size: 16),
+                                                SizedBox(width: 4),
+                                                Text(
+                                                  'Cambiar',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                : Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.add_photo_alternate_outlined,
+                                        size: 60,
+                                        color: Colors.grey[400],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        'Agregar imagen del objeto',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.grey[600],
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Toca para seleccionar',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey[500],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                       ),
                     ),
                     const SizedBox(height: 24),
