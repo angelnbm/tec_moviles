@@ -305,7 +305,7 @@ class _LoginFormPageState extends State<LoginFormPage> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          '© 2024 Universidad de Talca',
+                          '© 2025 Universidad de Talca',
                           style: TextStyle(
                             color: Colors.grey[600],
                             fontSize: 12,
