@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:namer_app/pages/main_page.dart';
 import 'package:namer_app/pages/registration_form_page.dart';
+import 'package:namer_app/config/api_config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
@@ -33,20 +34,39 @@ class _LoginFormPageState extends State<LoginFormPage> {
     );
 
     try {
+      ApiConfig.printCurrentUrl(); // Mostrar URL en debug
+      print('Intentando login en: ${ApiConfig.loginEndpoint}');
+      print('Email: ${_emailController.text}');
+      
       final response = await http.post(
-        Uri.parse('http://10.0.2.2:5000/api/auth/login'), // URL del backend
+        Uri.parse(ApiConfig.loginEndpoint), // URL del backend desde config
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'email': _emailController.text,
           'password': _passwordController.text,
         }),
+      ).timeout(
+        ApiConfig.timeout,
+        onTimeout: () {
+          throw Exception('Tiempo de espera agotado. Verifica que el servidor esté corriendo.');
+        },
       );
+
+      print('Respuesta recibida: ${response.statusCode}');
+      print('Cuerpo de la respuesta: ${response.body}');
 
       Navigator.pop(context); // Cierra el diálogo de carga
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
         final user = responseData['user']; // Obtener el objeto 'user'
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('¡Inicio de sesión exitoso!'),
+            backgroundColor: Colors.green,
+          ),
+        );
         
         Navigator.pushAndRemoveUntil(
           context,
@@ -56,13 +76,22 @@ class _LoginFormPageState extends State<LoginFormPage> {
       } else {
         final error = json.decode(response.body)['message'];
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $error')),
+          SnackBar(
+            content: Text('Error: $error'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
         );
       }
     } catch (e) {
       Navigator.pop(context);
+      print('Error capturado: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudo conectar al servidor: $e')),
+        SnackBar(
+          content: Text('Error de conexión: ${e.toString()}'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+        ),
       );
     }
   }

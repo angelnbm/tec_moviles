@@ -21,5 +21,6 @@ mongoose.connect(process.env.MONGO_URI)
 app.use('/api/auth', require('./routes/auth'));
 
 const PORT = process.env.PORT || 5000;
+const HOST = '0.0.0.0'; // Escuchar en todas las interfaces de red
 
-app.listen(PORT, () => console.log(`Servidor corriendo en el puerto ${PORT}`));
+app.listen(PORT, HOST, () => console.log(`Servidor corriendo en ${HOST}:${PORT}`));
