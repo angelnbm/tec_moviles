@@ -1,10 +1,15 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:location/location.dart';
 import 'package:namer_app/models/report.dart';
 import 'package:namer_app/services/api_service.dart';
+import 'package:flutter_sound/flutter_sound.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:audioplayers/audioplayers.dart' as ap;
+import 'package:permission_handler/permission_handler.dart' as ph;
 
 class NewReportPage extends StatefulWidget {
   const NewReportPage({super.key});
@@ -20,13 +25,171 @@ class _NewReportPageState extends State<NewReportPage> {
   final _locationController = TextEditingController();
   ReportCategory _selectedCategory = ReportCategory.found;
   File? _selectedImage;
+  // Audio recording variables
+  final FlutterSoundRecorder _audioRecorder = FlutterSoundRecorder();
+  final ap.AudioPlayer _audioPlayer = ap.AudioPlayer();
+  String? _audioPath;
+  bool _isRecording = false;
+  bool _isPlaying = false;
+  bool _isRecorderInitialized = false;
+  Duration _recordDuration = Duration.zero;
+  static const int maxRecordingDuration = 120;
+
+  @override
+  void initState() {
+    super.initState();
+    _initRecorder();
+
+    // Escuchar cambios en el estado del reproductor
+    _audioPlayer.onPlayerStateChanged.listen((state) {
+      setState(() {
+        _isPlaying = state == ap.PlayerState.playing;
+      });
+    });
+
+    // Cuando el audio termine de reproducirse, resetear el estado
+    _audioPlayer.onPlayerComplete.listen((event) {
+      setState(() {
+        _isPlaying = false;
+      });
+    });
+  }
+
+  Future<void> _initRecorder() async {
+    try {
+      await _audioRecorder.openRecorder();
+      setState(() {
+        _isRecorderInitialized = true;
+      });
+    } catch (e) {
+      _showSnackBar('Error al inicializar grabadora: $e', Colors.red);
+    }
+  }
 
   @override
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
     _locationController.dispose();
+    _audioRecorder.closeRecorder();
+    _audioPlayer.dispose();
     super.dispose();
+  }
+
+  Future<void> _startRecording() async {
+    if (!_isRecorderInitialized) {
+      _showSnackBar('Grabadora no inicializada', Colors.red);
+      return;
+    }
+
+    try {
+      // Solicitar permiso de micrófono
+      final status = await ph.Permission.microphone.request();
+      if (!status.isGranted) {
+        _showSnackBar('Permiso de micrófono denegado', Colors.red);
+        return;
+      }
+
+      final Directory appDocDir = await getApplicationDocumentsDirectory();
+      final String filePath =
+          '${appDocDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.aac';
+
+      await _audioRecorder.startRecorder(
+        toFile: filePath,
+        codec: Codec.aacADTS,
+      );
+
+      setState(() {
+        _isRecording = true;
+        _recordDuration = Duration.zero;
+        _audioPath = filePath;
+      });
+
+      _updateRecordingDuration();
+      _showSnackBar('Grabación iniciada', Colors.green);
+    } catch (e) {
+      _showSnackBar('Error al iniciar grabación: $e', Colors.red);
+    }
+  }
+
+  void _updateRecordingDuration() async {
+    while (_isRecording) {
+      await Future.delayed(const Duration(seconds: 1));
+      if (_isRecording) {
+        setState(() {
+          _recordDuration += const Duration(seconds: 1);
+        });
+
+        // Detener automáticamente si alcanza el límite
+        if (_recordDuration.inSeconds >= maxRecordingDuration) {
+          await _stopRecording();
+          _showSnackBar(
+            'Grabación detenida: límite de ${maxRecordingDuration ~/ 60} minutos alcanzado',
+            Colors.orange,
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _stopRecording() async {
+    if (!_isRecording) return;
+
+    try {
+      await _audioRecorder.stopRecorder();
+
+      setState(() {
+        _isRecording = false;
+      });
+
+      _showSnackBar(
+          'Audio grabado: ${_formatDuration(_recordDuration)}', Colors.green);
+    } catch (e) {
+      _showSnackBar('Error al detener grabación: $e', Colors.red);
+    }
+  }
+
+  Future<void> _playPauseAudio() async {
+    if (_audioPath == null) return;
+
+    try {
+      if (_isPlaying) {
+        // Pausar audio
+        await _audioPlayer.pause();
+      } else {
+        // Reproducir audio
+        await _audioPlayer.play(ap.DeviceFileSource(_audioPath!));
+      }
+    } catch (e) {
+      _showSnackBar('Error al reproducir audio: $e', Colors.red);
+    }
+  }
+
+  Future<void> _stopAudio() async {
+    try {
+      await _audioPlayer.stop();
+      setState(() {
+        _isPlaying = false;
+      });
+    } catch (e) {
+      _showSnackBar('Error al detener reproducción: $e', Colors.red);
+    }
+  }
+
+  void _deleteAudio() {
+    _stopAudio();
+    setState(() {
+      _audioPath = null;
+      _recordDuration = Duration.zero;
+    });
+    _showSnackBar('Audio eliminado', Colors.orange);
+  }
+
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final minutes = twoDigits(duration.inMinutes.remainder(60));
+    final seconds = twoDigits(duration.inSeconds.remainder(60));
+    return '$minutes:$seconds';
   }
 
   Future<void> _getCurrentLocation() async {
@@ -117,12 +280,13 @@ class _NewReportPageState extends State<NewReportPage> {
                     color: const Color(0xFFD32F2F).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.photo_library, color: Color(0xFFD32F2F)),
+                  child:
+                      const Icon(Icons.photo_library, color: Color(0xFFD32F2F)),
                 ),
                 title: const Text('Galería'),
                 onTap: () async {
-                  Navigator.of(context).pop(
-                      await picker.pickImage(source: ImageSource.gallery));
+                  Navigator.of(context)
+                      .pop(await picker.pickImage(source: ImageSource.gallery));
                 },
               ),
               ListTile(
@@ -132,7 +296,8 @@ class _NewReportPageState extends State<NewReportPage> {
                     color: const Color(0xFFD32F2F).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.photo_camera, color: Color(0xFFD32F2F)),
+                  child:
+                      const Icon(Icons.photo_camera, color: Color(0xFFD32F2F)),
                 ),
                 title: const Text('Cámara'),
                 onTap: () async {
@@ -163,6 +328,19 @@ class _NewReportPageState extends State<NewReportPage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
+  }
+
+  Future<String?> _convertAudioToBase64() async {
+    if (_audioPath == null) return null;
+
+    try {
+      final bytes = await File(_audioPath!).readAsBytes();
+      final base64Audio = base64Encode(bytes);
+      return 'data:audio/aac;base64,$base64Audio';
+    } catch (e) {
+      _showSnackBar('Error al procesar audio: $e', Colors.red);
+      return null;
+    }
   }
 
   Future<void> _submitReport() async {
@@ -197,6 +375,10 @@ class _NewReportPageState extends State<NewReportPage> {
     );
 
     try {
+      String? audioBase64;
+      if (_audioPath != null) {
+        audioBase64 = await _convertAudioToBase64();
+      }
       final result = await ApiService.createReport(
         title: _titleController.text,
         description: _descriptionController.text,
@@ -204,7 +386,9 @@ class _NewReportPageState extends State<NewReportPage> {
         location: 'Universidad de Talca', // You can make this more specific
         latitude: latitude,
         longitude: longitude,
-        imageUrl: _selectedImage?.path, // In a real app, you'd upload this to a server first
+        imageUrl: _selectedImage
+            ?.path, // In a real app, you'd upload this to a server first
+        audioUrl: audioBase64,
       );
 
       Navigator.pop(context); // Close loading dialog
@@ -286,7 +470,8 @@ class _NewReportPageState extends State<NewReportPage> {
                           color: const Color(0xFFD32F2F).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(Icons.category, color: Color(0xFFD32F2F), size: 20),
+                        child: const Icon(Icons.category,
+                            color: Color(0xFFD32F2F), size: 20),
                       ),
                       const SizedBox(width: 12),
                       Text(
@@ -360,7 +545,8 @@ class _NewReportPageState extends State<NewReportPage> {
                           color: const Color(0xFFD32F2F).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(Icons.info_outline, color: Color(0xFFD32F2F), size: 20),
+                        child: const Icon(Icons.info_outline,
+                            color: Color(0xFFD32F2F), size: 20),
                       ),
                       const SizedBox(width: 12),
                       Text(
@@ -379,7 +565,8 @@ class _NewReportPageState extends State<NewReportPage> {
                     decoration: InputDecoration(
                       labelText: 'Título *',
                       hintText: 'Ej: Mochila azul Nike',
-                      prefixIcon: const Icon(Icons.title, color: Color(0xFFD32F2F)),
+                      prefixIcon:
+                          const Icon(Icons.title, color: Color(0xFFD32F2F)),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -389,13 +576,15 @@ class _NewReportPageState extends State<NewReportPage> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFFD32F2F), width: 2),
+                        borderSide: const BorderSide(
+                            color: Color(0xFFD32F2F), width: 2),
                       ),
                       filled: true,
                       fillColor: Colors.grey.shade50,
                     ),
-                    validator: (value) =>
-                        value == null || value.isEmpty ? 'Campo requerido' : null,
+                    validator: (value) => value == null || value.isEmpty
+                        ? 'Campo requerido'
+                        : null,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
@@ -403,7 +592,8 @@ class _NewReportPageState extends State<NewReportPage> {
                     decoration: InputDecoration(
                       labelText: 'Descripción *',
                       hintText: 'Describe el objeto con detalle...',
-                      prefixIcon: const Icon(Icons.description, color: Color(0xFFD32F2F)),
+                      prefixIcon: const Icon(Icons.description,
+                          color: Color(0xFFD32F2F)),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -413,14 +603,16 @@ class _NewReportPageState extends State<NewReportPage> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFFD32F2F), width: 2),
+                        borderSide: const BorderSide(
+                            color: Color(0xFFD32F2F), width: 2),
                       ),
                       filled: true,
                       fillColor: Colors.grey.shade50,
                     ),
                     maxLines: 4,
-                    validator: (value) =>
-                        value == null || value.isEmpty ? 'Campo requerido' : null,
+                    validator: (value) => value == null || value.isEmpty
+                        ? 'Campo requerido'
+                        : null,
                   ),
                 ],
               ),
@@ -451,7 +643,8 @@ class _NewReportPageState extends State<NewReportPage> {
                           color: const Color(0xFFD32F2F).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(Icons.location_on, color: Color(0xFFD32F2F), size: 20),
+                        child: const Icon(Icons.location_on,
+                            color: Color(0xFFD32F2F), size: 20),
                       ),
                       const SizedBox(width: 12),
                       Text(
@@ -471,9 +664,11 @@ class _NewReportPageState extends State<NewReportPage> {
                     decoration: InputDecoration(
                       labelText: 'Ubicación *',
                       hintText: 'Selecciona en el mapa',
-                      prefixIcon: const Icon(Icons.map, color: Color(0xFFD32F2F)),
+                      prefixIcon:
+                          const Icon(Icons.map, color: Color(0xFFD32F2F)),
                       suffixIcon: IconButton(
-                        icon: const Icon(Icons.my_location, color: Color(0xFFD32F2F)),
+                        icon: const Icon(Icons.my_location,
+                            color: Color(0xFFD32F2F)),
                         onPressed: _getCurrentLocation,
                         tooltip: 'Usar mi ubicación',
                       ),
@@ -486,13 +681,15 @@ class _NewReportPageState extends State<NewReportPage> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFFD32F2F), width: 2),
+                        borderSide: const BorderSide(
+                            color: Color(0xFFD32F2F), width: 2),
                       ),
                       filled: true,
                       fillColor: Colors.grey.shade50,
                     ),
-                    validator: (value) =>
-                        value == null || value.isEmpty ? 'Campo requerido' : null,
+                    validator: (value) => value == null || value.isEmpty
+                        ? 'Campo requerido'
+                        : null,
                     onTap: _selectLocationOnMap,
                   ),
                   const SizedBox(height: 12),
@@ -541,7 +738,8 @@ class _NewReportPageState extends State<NewReportPage> {
                           color: const Color(0xFFD32F2F).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(Icons.image, color: Color(0xFFD32F2F), size: 20),
+                        child: const Icon(Icons.image,
+                            color: Color(0xFFD32F2F), size: 20),
                       ),
                       const SizedBox(width: 12),
                       Text(
@@ -573,7 +771,8 @@ class _NewReportPageState extends State<NewReportPage> {
                             top: 8,
                             right: 8,
                             child: IconButton(
-                              icon: const Icon(Icons.close, color: Colors.white),
+                              icon:
+                                  const Icon(Icons.close, color: Colors.white),
                               style: IconButton.styleFrom(
                                 backgroundColor: Colors.black54,
                               ),
@@ -591,8 +790,12 @@ class _NewReportPageState extends State<NewReportPage> {
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: _pickImage,
-                      icon: Icon(_selectedImage == null ? Icons.add_photo_alternate : Icons.edit),
-                      label: Text(_selectedImage == null ? 'Agregar imagen' : 'Cambiar imagen'),
+                      icon: Icon(_selectedImage == null
+                          ? Icons.add_photo_alternate
+                          : Icons.edit),
+                      label: Text(_selectedImage == null
+                          ? 'Agregar imagen'
+                          : 'Cambiar imagen'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFFD32F2F),
                         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -610,6 +813,226 @@ class _NewReportPageState extends State<NewReportPage> {
                 ],
               ),
             ),
+            const SizedBox(height: 20),
+            // Card de Audio
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD32F2F).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.mic,
+                            color: Color(0xFFD32F2F), size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Audio (opcional)',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[800],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Controles de grabación
+                  if (_audioPath == null) ...[
+                    if (_isRecording) ...[
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.red.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 12,
+                              height: 12,
+                              decoration: const BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            const Text(
+                              'Grabando',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.red,
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              _formatDuration(_recordDuration),
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.red,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _stopRecording,
+                          icon: const Icon(Icons.stop),
+                          label: const Text('Detener grabación'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ] else ...[
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _startRecording,
+                          icon: const Icon(Icons.mic),
+                          label: const Text('Grabar audio'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFFD32F2F),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            side: const BorderSide(color: Color(0xFFD32F2F)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ] else ...[
+                    // Reproductor de audio
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.green.shade200),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              // Botón de play/pause
+                              IconButton(
+                                icon: Icon(
+                                  _isPlaying
+                                      ? Icons.pause_circle
+                                      : Icons.play_circle,
+                                  size: 48,
+                                  color: Colors.green.shade700,
+                                ),
+                                onPressed: _playPauseAudio,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _isPlaying
+                                          ? 'Reproduciendo...'
+                                          : 'Audio grabado',
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Duración: ${_formatDuration(_recordDuration)}',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              // Botón de parar
+                              if (_isPlaying)
+                                IconButton(
+                                  icon:
+                                      Icon(Icons.stop, color: Colors.grey[700]),
+                                  onPressed: _stopAudio,
+                                  tooltip: 'Detener',
+                                ),
+                              // Botón de eliminar
+                              IconButton(
+                                icon:
+                                    const Icon(Icons.delete, color: Colors.red),
+                                onPressed: _deleteAudio,
+                                tooltip: 'Eliminar audio',
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          _deleteAudio();
+                          _startRecording();
+                        },
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Grabar nuevo audio'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFFD32F2F),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          side: const BorderSide(color: Color(0xFFD32F2F)),
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  Text(
+                    'Máximo ${maxRecordingDuration ~/ 60} minutos de grabación',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             const SizedBox(height: 30),
             // Botón de crear
             SizedBox(

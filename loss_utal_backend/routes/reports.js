@@ -42,6 +42,7 @@ router.post('/', auth, async (req, res) => {
       latitude,
       longitude,
       imageUrl,
+      audioUrl,
       userId: req.user.id
     });
 
@@ -75,6 +76,7 @@ router.put('/:id', auth, async (req, res) => {
     if (latitude !== undefined) report.latitude = latitude;
     if (longitude !== undefined) report.longitude = longitude;
     if (imageUrl) report.imageUrl = imageUrl;
+    if (audioUrl) report.audioUrl = audioUrl;
     if (status) report.status = status;
 
     await report.save();

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:io' show Platform;
 import 'package:http/http.dart' as http;
@@ -78,7 +79,10 @@ class ApiService {
         return {'success': true, 'data': data};
       } else {
         final error = jsonDecode(response.body);
-        return {'success': false, 'message': error['msg'] ?? 'Error al registrar'};
+        return {
+          'success': false,
+          'message': error['msg'] ?? 'Error al registrar'
+        };
       }
     } catch (e) {
       return {'success': false, 'message': 'Error de conexión: $e'};
@@ -106,7 +110,10 @@ class ApiService {
         return {'success': true, 'data': data};
       } else {
         final error = jsonDecode(response.body);
-        return {'success': false, 'message': error['msg'] ?? 'Error al iniciar sesión'};
+        return {
+          'success': false,
+          'message': error['msg'] ?? 'Error al iniciar sesión'
+        };
       }
     } catch (e) {
       return {'success': false, 'message': 'Error de conexión: $e'};
@@ -118,6 +125,21 @@ class ApiService {
     await clearUserData();
   }
 
+  static Future<String?> _fileToBase64(String filePath, String mimeType) async {
+    try {
+      final file = File(filePath);
+      if (await file.exists()) {
+        final bytes = await file.readAsBytes();
+        final base64String = base64Encode(bytes);
+        return 'data:$mimeType;base64,$base64String';
+      }
+      return null;
+    } catch (e) {
+      print('Error convirtiendo archivo a Base64: $e');
+      return null;
+    }
+  }
+
   // Reports endpoints
   static Future<Map<String, dynamic>> createReport({
     required String title,
@@ -127,11 +149,27 @@ class ApiService {
     required double latitude,
     required double longitude,
     String? imageUrl,
+    String? audioUrl,
   }) async {
     try {
       final token = await getToken();
       if (token == null) {
         return {'success': false, 'message': 'No autenticado'};
+      }
+      // Si hay una ruta de archivo de audio, súbelo primero
+      String? processedAudioUrl;
+      if (audioUrl != null && audioUrl.startsWith('/')) {
+        processedAudioUrl = await _fileToBase64(audioUrl, 'audio/aac');
+      } else {
+        processedAudioUrl = audioUrl;
+      }
+
+      // Convertir imagen a Base64 si es una ruta de archivo local
+      String? processedImageUrl;
+      if (imageUrl != null && imageUrl.startsWith('/')) {
+        processedImageUrl = await _fileToBase64(imageUrl, 'image/jpeg');
+      } else {
+        processedImageUrl = imageUrl;
       }
 
       final response = await http.post(
@@ -147,7 +185,8 @@ class ApiService {
           'location': location,
           'latitude': latitude,
           'longitude': longitude,
-          'imageUrl': imageUrl,
+          'imageUrl': processedImageUrl,
+          'audioUrl': processedAudioUrl,
         }),
       );
 
@@ -156,7 +195,10 @@ class ApiService {
         return {'success': true, 'data': data};
       } else {
         final error = jsonDecode(response.body);
-        return {'success': false, 'message': error['msg'] ?? 'Error al crear reporte'};
+        return {
+          'success': false,
+          'message': error['msg'] ?? 'Error al crear reporte'
+        };
       }
     } catch (e) {
       return {'success': false, 'message': 'Error de conexión: $e'};
@@ -238,7 +280,10 @@ class ApiService {
         return {'success': true, 'data': data};
       } else {
         final error = jsonDecode(response.body);
-        return {'success': false, 'message': error['msg'] ?? 'Error al actualizar reporte'};
+        return {
+          'success': false,
+          'message': error['msg'] ?? 'Error al actualizar reporte'
+        };
       }
     } catch (e) {
       return {'success': false, 'message': 'Error de conexión: $e'};
@@ -265,7 +310,10 @@ class ApiService {
         return {'success': true, 'data': data};
       } else {
         final error = jsonDecode(response.body);
-        return {'success': false, 'message': error['msg'] ?? 'Error al eliminar reporte'};
+        return {
+          'success': false,
+          'message': error['msg'] ?? 'Error al eliminar reporte'
+        };
       }
     } catch (e) {
       return {'success': false, 'message': 'Error de conexión: $e'};
