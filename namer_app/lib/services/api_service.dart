@@ -211,6 +211,11 @@ class ApiService {
     required String reportId,
     String? title,
     String? description,
+    String? category,
+    String? location,
+    double? latitude,
+    double? longitude,
+    String? imageUrl,
     String? status,
   }) async {
     try {
@@ -222,6 +227,11 @@ class ApiService {
       final body = <String, dynamic>{};
       if (title != null) body['title'] = title;
       if (description != null) body['description'] = description;
+      if (category != null) body['category'] = category;
+      if (location != null) body['location'] = location;
+      if (latitude != null) body['latitude'] = latitude;
+      if (longitude != null) body['longitude'] = longitude;
+      if (imageUrl != null) body['imageUrl'] = imageUrl;
       if (status != null) body['status'] = status;
 
       final response = await http.put(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:namer_app/pages/object_detail_page.dart';
+import 'package:namer_app/pages/edit_report_page.dart';
 import 'package:namer_app/services/api_service.dart';
 
 class MyReportsPage extends StatefulWidget {
@@ -615,52 +616,18 @@ class _MyReportsPageState extends State<MyReportsPage> {
     );
   }
 
-  void _showEditDialog(dynamic report) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFD32F2F).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.edit, color: Color(0xFFD32F2F)),
-              ),
-              const SizedBox(width: 12),
-              const Text('Editar reporte'),
-            ],
-          ),
-          content: Text('¿Deseas editar el reporte "${report['title']}"?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Función de edición próximamente'),
-                    backgroundColor: Color(0xFFD32F2F),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFD32F2F),
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Editar'),
-            ),
-          ],
-        );
-      },
+  void _showEditDialog(dynamic report) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditReportPage(report: report),
+      ),
     );
+    
+    // Si se editó exitosamente, recargar la lista
+    if (result == true) {
+      _loadMyReports();
+    }
   }
 
   void _showResolveDialog(dynamic report) {
