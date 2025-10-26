@@ -55,9 +55,6 @@ class ReportImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Debug: imprimir información sobre la imagen
-    print('🖼️ ReportImage: imageBase64 is ${imageBase64 == null ? "null" : (imageBase64!.isEmpty ? "empty" : "length ${imageBase64!.length}")}');
-    
     if (imageBase64 == null || imageBase64!.isEmpty) {
       return _buildPlaceholder();
     }
@@ -69,9 +66,7 @@ class ReportImage extends StatelessWidget {
         base64String = base64String.split(',')[1];
       }
 
-      print('🖼️ Decodificando imagen base64, longitud: ${base64String.length}');
       final bytes = base64Decode(base64String);
-      print('✅ Imagen decodificada, bytes: ${bytes.length}');
       
       return ClipRRect(
         borderRadius: borderRadius ?? BorderRadius.zero,
@@ -81,14 +76,14 @@ class ReportImage extends StatelessWidget {
           height: height,
           fit: fit,
           errorBuilder: (context, error, stackTrace) {
-            print('❌ Error al cargar imagen: $error');
+            print('❌ Error al cargar imagen en ReportImage: $error');
             return _buildErrorPlaceholder(Icons.broken_image_outlined);
           },
         ),
       );
     } catch (e) {
       // Si hay error al decodificar, mostrar placeholder
-      print('❌ Error al decodificar base64: $e');
+      print('❌ Error al decodificar base64 en ReportImage: $e');
       return _buildErrorPlaceholder(Icons.error_outline);
     }
   }
