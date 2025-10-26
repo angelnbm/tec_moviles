@@ -7,6 +7,9 @@ const UserSchema = new mongoose.Schema({
   rut: { type: String, required: true, unique: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
+  profilePhoto: { type: String, default: '' }, // URL o Base64 de la foto de perfil
+}, {
+  timestamps: true, // Agrega createdAt y updatedAt automáticamente
 });
 
 // Hashear la contraseña antes de guardar el modelo de usuario

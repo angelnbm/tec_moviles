@@ -10,7 +10,8 @@ const app = express();
 
 // Middleware
 app.use(cors()); // Permitir peticiones de otros orígenes
-app.use(express.json()); // Para parsear JSON
+app.use(express.json({ limit: '10mb' })); // Aumentar límite para JSON (fotos en Base64)
+app.use(express.urlencoded({ limit: '10mb', extended: true })); // Aumentar límite para datos de formulario
 
 // Conectar a MongoDB
 mongoose.connect(process.env.MONGO_URI)

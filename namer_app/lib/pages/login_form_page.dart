@@ -60,6 +60,7 @@ class _LoginFormPageState extends State<LoginFormPage> {
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
         final user = responseData['user']; // Obtener el objeto 'user'
+        final token = responseData['token']; // Obtener el token
         
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -70,7 +71,9 @@ class _LoginFormPageState extends State<LoginFormPage> {
         
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => MainPage(user: user)),
+          MaterialPageRoute(
+            builder: (context) => MainPage(user: user, token: token),
+          ),
           (route) => false,
         );
       } else {

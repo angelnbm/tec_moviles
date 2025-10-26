@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
@@ -16,7 +16,7 @@ class _NewReportPageState extends State<NewReportPage> {
   final _formKey = GlobalKey<FormState>();
   ReportCategory _selectedCategory = ReportCategory.found;
   final TextEditingController _locationController = TextEditingController();
-  File? _selectedImage;
+  Uint8List? _selectedImageBytes;
 
   @override
   void dispose() {
@@ -98,8 +98,9 @@ class _NewReportPageState extends State<NewReportPage> {
     );
 
     if (pickedFile != null) {
+      final bytes = await pickedFile.readAsBytes();
       setState(() {
-        _selectedImage = File(pickedFile.path);
+        _selectedImageBytes = bytes;
       });
     }
   }
@@ -181,7 +182,7 @@ class _NewReportPageState extends State<NewReportPage> {
               const SizedBox(height: 20),
               const Text('Imagen (opcional)'),
               const SizedBox(height: 10),
-              if (_selectedImage != null)
+              if (_selectedImageBytes != null)
                 Container(
                   height: 200,
                   margin: const EdgeInsets.only(bottom: 10),
@@ -189,12 +190,12 @@ class _NewReportPageState extends State<NewReportPage> {
                     border: Border.all(color: Colors.grey),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Image.file(_selectedImage!, fit: BoxFit.cover),
+                  child: Image.memory(_selectedImageBytes!, fit: BoxFit.cover),
                 ),
               OutlinedButton.icon(
                 onPressed: _pickImage,
                 icon: const Icon(Icons.attach_file),
-                label: Text(_selectedImage == null ? 'Adjuntar Imagen' : 'Cambiar Imagen'),
+                label: Text(_selectedImageBytes == null ? 'Adjuntar Imagen' : 'Cambiar Imagen'),
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 48),
                 ),

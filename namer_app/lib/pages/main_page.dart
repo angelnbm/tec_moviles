@@ -6,8 +6,9 @@ import 'profile_page.dart';
 
 class MainPage extends StatefulWidget {
   final Map<String, dynamic>? user;
+  final String? token;
 
-  const MainPage({super.key, this.user});
+  const MainPage({super.key, this.user, this.token});
 
   @override
   State<MainPage> createState() => _MainPageState();
@@ -15,17 +16,12 @@ class MainPage extends StatefulWidget {
 
 class _MainPageState extends State<MainPage> {
   int _selectedIndex = 0;
-  late final List<Widget> _widgetOptions;
+  late Map<String, dynamic>? currentUser;
 
   @override
   void initState() {
     super.initState();
-    _widgetOptions = <Widget>[
-      GuestLandingPage(),
-      MyReportsPage(),
-      SearchPage(),
-      ProfilePage(user: widget.user), // Pasa los datos del usuario al perfil
-    ];
+    currentUser = widget.user;
   }
 
   void _onItemTapped(int index) {
@@ -34,10 +30,27 @@ class _MainPageState extends State<MainPage> {
     });
   }
 
+  void _updateUser(Map<String, dynamic> updatedUser) {
+    setState(() {
+      currentUser = updatedUser;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final List<Widget> widgetOptions = <Widget>[
+      GuestLandingPage(),
+      MyReportsPage(),
+      SearchPage(),
+      ProfilePage(
+        user: currentUser,
+        token: widget.token,
+        onUserUpdated: _updateUser,
+      ),
+    ];
+
     return Scaffold(
-      body: _widgetOptions.elementAt(_selectedIndex),
+      body: widgetOptions.elementAt(_selectedIndex),
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(

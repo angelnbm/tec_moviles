@@ -30,6 +30,7 @@ class ApiConfig {
   // Endpoints
   static String get loginEndpoint => '$baseUrl$apiVersion/auth/login';
   static String get registerEndpoint => '$baseUrl$apiVersion/auth/register';
+  static String get profileEndpoint => '$baseUrl$apiVersion/auth/profile';
   
   // Timeout
   static const Duration timeout = Duration(seconds: 10);
