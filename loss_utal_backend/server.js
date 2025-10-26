@@ -20,6 +20,7 @@ mongoose.connect(process.env.MONGO_URI)
 
 // Rutas
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/reports', require('./routes/reports'));
 
 const PORT = process.env.PORT || 5000;
 const HOST = '0.0.0.0'; // Escuchar en todas las interfaces de red
