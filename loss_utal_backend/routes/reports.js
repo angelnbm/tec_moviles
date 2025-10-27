@@ -84,7 +84,7 @@ router.put('/:id', auth, async (req, res) => {
       return res.status(403).json({ message: 'No autorizado' });
     }
 
-    const { title, description, category, location, latitude, longitude, imageUrl, status } = req.body;
+    const { title, description, category, location, latitude, longitude, imageUrl, audioUrl, status } = req.body;
     
     if (title) report.title = title;
     if (description) report.description = description;

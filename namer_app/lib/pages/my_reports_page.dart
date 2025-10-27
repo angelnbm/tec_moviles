@@ -627,7 +627,7 @@ class _MyReportsPageState extends State<MyReportsPage> {
   void _showResolveDialog(dynamic report) {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(
@@ -649,41 +649,76 @@ class _MyReportsPageState extends State<MyReportsPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Cancelar'),
             ),
             ElevatedButton(
               onPressed: () async {
-                Navigator.pop(context);
+                // Cerrar el diálogo de confirmación
+                Navigator.pop(dialogContext);
                 
-                // Llamar a la API para marcar como resuelto
-                final result = await ApiService.updateReport(
-                  reportId: report['_id'],
-                  status: 'resolved',
+                // Usar el contexto del widget principal, no del diálogo
+                if (!mounted) return;
+                
+                // Mostrar indicador de carga
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (BuildContext loadingContext) {
+                    return const Center(
+                      child: CircularProgressIndicator(),
+                    );
+                  },
                 );
                 
-                if (result['success']) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Row(
-                        children: [
-                          Icon(Icons.check_circle, color: Colors.white),
-                          SizedBox(width: 12),
-                          Text('Reporte marcado como resuelto'),
-                        ],
+                try {
+                  // Llamar a la API para marcar como resuelto
+                  final result = await ApiService.updateReport(
+                    reportId: report['_id'],
+                    status: 'resolved',
+                  );
+                  
+                  // Cerrar el indicador de carga
+                  if (mounted) {
+                    Navigator.pop(context);
+                  }
+                  
+                  if (mounted) {
+                    if (result['success']) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Row(
+                            children: [
+                              Icon(Icons.check_circle, color: Colors.white),
+                              SizedBox(width: 12),
+                              Text('Reporte marcado como resuelto'),
+                            ],
+                          ),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                      // Recargar la lista
+                      _loadMyReports();
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error: ${result['message']}'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                } catch (e) {
+                  // En caso de error, cerrar el indicador de carga
+                  if (mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error: $e'),
+                        backgroundColor: Colors.red,
                       ),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                  // Recargar la lista
-                  _loadMyReports();
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error: ${result['message']}'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                    );
+                  }
                 }
               },
               style: ElevatedButton.styleFrom(
