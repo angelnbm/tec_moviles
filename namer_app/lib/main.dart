@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:namer_app/pages/login_page.dart';
+import 'package:namer_app/services/api_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await ApiService.initBaseUrl();
   runApp(const LossUtalApp());
 }
 
