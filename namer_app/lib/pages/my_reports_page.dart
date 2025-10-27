@@ -428,22 +428,39 @@ class _MyReportsPageState extends State<MyReportsPage> {
                                       ),
                                       const SizedBox(width: 8),
                                       Expanded(
-                                        child: ElevatedButton.icon(
-                                          onPressed: () {
-                                            _showResolveDialog(report);
-                                          },
-                                          icon: const Icon(Icons.check_circle_outline, size: 16),
-                                          label: const Text('Resolver'),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.green.shade600,
-                                            foregroundColor: Colors.white,
-                                            padding: const EdgeInsets.symmetric(vertical: 10),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                            elevation: 0,
-                                          ),
-                                        ),
+                                        child: report['status'] == 'resolved'
+                                            ? ElevatedButton.icon(
+                                                onPressed: () {
+                                                  _showReactivateDialog(report);
+                                                },
+                                                icon: const Icon(Icons.replay, size: 16),
+                                                label: const Text('Volver a publicar'),
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: Colors.red.shade600,
+                                                  foregroundColor: Colors.white,
+                                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius: BorderRadius.circular(8),
+                                                  ),
+                                                  elevation: 0,
+                                                ),
+                                              )
+                                            : ElevatedButton.icon(
+                                                onPressed: () {
+                                                  _showResolveDialog(report);
+                                                },
+                                                icon: const Icon(Icons.check_circle_outline, size: 16),
+                                                label: const Text('Resolver'),
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: Colors.green.shade600,
+                                                  foregroundColor: Colors.white,
+                                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius: BorderRadius.circular(8),
+                                                  ),
+                                                  elevation: 0,
+                                                ),
+                                              ),
                                       ),
                                     ],
                                   ),
@@ -627,7 +644,7 @@ class _MyReportsPageState extends State<MyReportsPage> {
   void _showResolveDialog(dynamic report) {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(
@@ -649,41 +666,76 @@ class _MyReportsPageState extends State<MyReportsPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Cancelar'),
             ),
             ElevatedButton(
               onPressed: () async {
-                Navigator.pop(context);
+                // Cerrar el diálogo de confirmación
+                Navigator.pop(dialogContext);
                 
-                // Llamar a la API para marcar como resuelto
-                final result = await ApiService.updateReport(
-                  reportId: report['_id'],
-                  status: 'resolved',
+                // Usar el contexto del widget principal, no del diálogo
+                if (!mounted) return;
+                
+                // Mostrar indicador de carga
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (BuildContext loadingContext) {
+                    return const Center(
+                      child: CircularProgressIndicator(),
+                    );
+                  },
                 );
                 
-                if (result['success']) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Row(
-                        children: [
-                          Icon(Icons.check_circle, color: Colors.white),
-                          SizedBox(width: 12),
-                          Text('Reporte marcado como resuelto'),
-                        ],
+                try {
+                  // Llamar a la API para marcar como resuelto
+                  final result = await ApiService.updateReport(
+                    reportId: report['_id'],
+                    status: 'resolved',
+                  );
+                  
+                  // Cerrar el indicador de carga
+                  if (mounted) {
+                    Navigator.pop(context);
+                  }
+                  
+                  if (mounted) {
+                    if (result['success']) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Row(
+                            children: [
+                              Icon(Icons.check_circle, color: Colors.white),
+                              SizedBox(width: 12),
+                              Text('Reporte marcado como resuelto'),
+                            ],
+                          ),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                      // Recargar la lista
+                      _loadMyReports();
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error: ${result['message']}'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                } catch (e) {
+                  // En caso de error, cerrar el indicador de carga
+                  if (mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error: $e'),
+                        backgroundColor: Colors.red,
                       ),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                  // Recargar la lista
-                  _loadMyReports();
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error: ${result['message']}'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                    );
+                  }
                 }
               },
               style: ElevatedButton.styleFrom(
@@ -691,6 +743,115 @@ class _MyReportsPageState extends State<MyReportsPage> {
                 foregroundColor: Colors.white,
               ),
               child: const Text('Resolver'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showReactivateDialog(dynamic report) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.replay, color: Colors.red),
+              ),
+              const SizedBox(width: 12),
+              const Text('Volver a publicar'),
+            ],
+          ),
+          content: Text(
+            '¿Deseas volver a publicar el reporte "${report['title']}"?\n\nEste volverá a ser visible en la página de inicio.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                // Cerrar el diálogo de confirmación
+                Navigator.pop(dialogContext);
+                
+                // Usar el contexto del widget principal, no del diálogo
+                if (!mounted) return;
+                
+                // Mostrar indicador de carga
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (BuildContext loadingContext) {
+                    return const Center(
+                      child: CircularProgressIndicator(),
+                    );
+                  },
+                );
+                
+                try {
+                  // Llamar a la API para reactivar (marcar como activo)
+                  final result = await ApiService.updateReport(
+                    reportId: report['_id'],
+                    status: 'active',
+                  );
+                  
+                  // Cerrar el indicador de carga
+                  if (mounted) {
+                    Navigator.pop(context);
+                  }
+                  
+                  if (mounted) {
+                    if (result['success']) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Row(
+                            children: [
+                              Icon(Icons.check_circle, color: Colors.white),
+                              SizedBox(width: 12),
+                              Text('Reporte publicado nuevamente'),
+                            ],
+                          ),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                      // Recargar la lista
+                      _loadMyReports();
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error: ${result['message']}'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                } catch (e) {
+                  // En caso de error, cerrar el indicador de carga
+                  if (mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade600,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Volver a publicar'),
             ),
           ],
         );
