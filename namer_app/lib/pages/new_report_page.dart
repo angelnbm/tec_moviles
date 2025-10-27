@@ -1,4 +1,6 @@
 import 'dart:typed_data';
+import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
@@ -408,7 +410,6 @@ class _NewReportPageState extends State<NewReportPage> {
         longitude: longitude,
         imageUrl: imageBase64,
         audioUrl: audioBase64,
-            ?.path, // In a real app, you'd upload this to a server first
       );
 
       Navigator.pop(context); // Close loading dialog
