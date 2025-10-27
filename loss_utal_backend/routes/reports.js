@@ -38,7 +38,7 @@ router.get('/my-reports', auth, async (req, res) => {
 
 //Crear un nuevo reporte
 router.post('/', auth, async (req, res) => {
-  const { title, description, category, location, latitude, longitude, imageUrl } = req.body;
+  const { title, description, category, location, latitude, longitude, imageUrl, audioUrl } = req.body;
   
   console.log('📝 Creando nuevo reporte:', {
     title,
@@ -58,6 +58,7 @@ router.post('/', auth, async (req, res) => {
       latitude,
       longitude,
       imageUrl,
+      audioUrl,
       userId: req.user.id
     });
 
@@ -92,6 +93,7 @@ router.put('/:id', auth, async (req, res) => {
     if (latitude !== undefined) report.latitude = latitude;
     if (longitude !== undefined) report.longitude = longitude;
     if (imageUrl) report.imageUrl = imageUrl;
+    if (audioUrl) report.audioUrl = audioUrl;
     if (status) report.status = status;
 
     await report.save();
