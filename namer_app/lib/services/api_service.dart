@@ -7,13 +7,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
   static String get baseUrl {
-    if (kIsWeb) {
-      return 'http://localhost:5000/api'; // Web
-    } else if (Platform.isAndroid) {
-      return 'http://10.0.2.2:5000/api'; // Android Emulator
-    } else {
-      return 'http://localhost:5000/api'; // iOS/Desktop
-    }
+    // Lee la variable de entorno 'BASE_URL'. 
+    // Si no se proporciona, usa la IP del emulador como valor por defecto.
+    const defaultUrl = 'http://10.0.2.2:5000/api';
+    return const String.fromEnvironment('BASE_URL', defaultValue: defaultUrl);
   }
 
   // Token management
