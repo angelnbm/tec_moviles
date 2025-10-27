@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:namer_app/pages/object_detail_page.dart';
 import 'package:namer_app/services/api_service.dart';
+import 'package:namer_app/widgets/report_image.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -16,7 +17,6 @@ class _SearchPageState extends State<SearchPage> {
   List<dynamic> _allReports = [];
   List<dynamic> _filteredReports = [];
   bool _filtersActive = false;
-  bool _isLoading = true;
 
   @override
   void initState() {
@@ -25,27 +25,16 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Future<void> _loadReports() async {
-    setState(() {
-      _isLoading = true;
-    });
-
     try {
       final result = await ApiService.getAllReports();
       
       if (result['success']) {
         setState(() {
           _allReports = result['data'] as List<dynamic>;
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _isLoading = false;
         });
       }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
+      // Handle error silently or show a message
     }
   }
 
@@ -386,10 +375,15 @@ class _SearchPageState extends State<SearchPage> {
                           ],
                         ),
                       )
-                    : ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        itemCount: _filteredReports.length,
-                        itemBuilder: (context, index) {
+                    : RefreshIndicator(
+                        onRefresh: () async {
+                          await _loadReports();
+                          _applyFilters();
+                        },
+                        child: ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          itemCount: _filteredReports.length,
+                          itemBuilder: (context, index) {
                           final report = _filteredReports[index];
                           final isLost = report['category'] == 'lost';
                           final createdAt = DateTime.parse(report['createdAt']);
@@ -412,30 +406,26 @@ class _SearchPageState extends State<SearchPage> {
                               color: Colors.transparent,
                               child: InkWell(
                                 borderRadius: BorderRadius.circular(16),
-                                onTap: () {
-                                  Navigator.push(
+                                onTap: () async {
+                                  await Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) => ObjectDetailPage(report: report),
                                     ),
                                   );
+                                  // Reload reports after returning from detail page
+                                  await _loadReports();
+                                  _applyFilters();
                                 },
                                 child: Padding(
                                   padding: const EdgeInsets.all(16),
                                   child: Row(
                                     children: [
-                                      Container(
+                                      ReportImage(
+                                        imageBase64: report['imageUrl'],
                                         width: 70,
                                         height: 70,
-                                        decoration: BoxDecoration(
-                                          color: Colors.grey[200],
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Icon(
-                                          Icons.image_outlined,
-                                          size: 32,
-                                          color: Colors.grey[400],
-                                        ),
+                                        borderRadius: BorderRadius.circular(12),
                                       ),
                                       const SizedBox(width: 16),
                                       Expanded(
@@ -559,6 +549,7 @@ class _SearchPageState extends State<SearchPage> {
                           );
                         },
                       ),
+                    ),
           ),
         ],
       ),

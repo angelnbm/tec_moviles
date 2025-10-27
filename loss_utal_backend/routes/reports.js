@@ -7,9 +7,16 @@ const router = express.Router();
 //Obtener todos los reportes (público)
 router.get('/', async (req, res) => {
   try {
-    const reports = await Report.find()
-      .populate('userId', 'name lastName email')
+    // Solo obtener reportes activos (no resueltos)
+    const reports = await Report.find({ status: 'active' })
+      .populate('userId', 'name lastName email profileImage')
       .sort({ createdAt: -1 });
+    
+    console.log(`📋 Obteniendo ${reports.length} reportes activos`);
+    reports.forEach((report, index) => {
+      console.log(`  ${index + 1}. ${report.title} - Status: ${report.status}, hasImage: ${!!report.imageUrl}, imageLength: ${report.imageUrl ? report.imageUrl.length : 0}`);
+    });
+    
     res.json(reports);
   } catch (err) {
     console.error(err);
@@ -33,6 +40,15 @@ router.get('/my-reports', auth, async (req, res) => {
 router.post('/', auth, async (req, res) => {
   const { title, description, category, location, latitude, longitude, imageUrl, audioUrl } = req.body;
   
+  console.log('📝 Creando nuevo reporte:', {
+    title,
+    category,
+    location,
+    hasImage: !!imageUrl,
+    imageUrlLength: imageUrl ? imageUrl.length : 0,
+    imagePreview: imageUrl ? imageUrl.substring(0, 50) + '...' : 'N/A'
+  });
+  
   try {
     const newReport = new Report({
       title,
@@ -47,9 +63,10 @@ router.post('/', auth, async (req, res) => {
     });
 
     const report = await newReport.save();
+    console.log('✅ Reporte guardado con ID:', report._id, '- Imagen guardada:', !!report.imageUrl);
     res.status(201).json(report);
   } catch (err) {
-    console.error(err);
+    console.error('❌ Error al guardar reporte:', err);
     res.status(500).json({ message: 'Error en el servidor' });
   }
 });

@@ -1,18 +1,45 @@
 import 'package:flutter/material.dart';
 import 'package:namer_app/pages/login_page.dart';
+import 'package:namer_app/pages/edit_profile_page.dart';
+import 'package:namer_app/services/api_service.dart';
+import 'package:namer_app/widgets/profile_avatar.dart';
 
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends StatefulWidget {
   final Map<String, dynamic>? user;
 
   const ProfilePage({super.key, this.user});
 
   @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  late Map<String, dynamic>? _currentUser;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentUser = widget.user;
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final userData = await ApiService.getUserData();
+    if (userData != null && mounted) {
+      setState(() {
+        _currentUser = userData;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     // Usa los datos del usuario si existen, si no, muestra valores por defecto.
-    final String userName = user?['name'] ?? 'Usuario';
-    final String userLastName = user?['lastName'] ?? 'Invitado';
-    final String userEmail = user?['email'] ?? 'invitado@utalca.cl';
-    final String userRut = user?['rut'] ?? 'Sin RUT';
+    final String userName = _currentUser?['name'] ?? 'Usuario';
+    final String userLastName = _currentUser?['lastName'] ?? 'Invitado';
+    final String userEmail = _currentUser?['email'] ?? 'invitado@utalca.cl';
+    final String userRut = _currentUser?['rut'] ?? 'Sin RUT';
+    final String? profileImage = _currentUser?['profileImage'];
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
@@ -50,24 +77,11 @@ class ProfilePage extends StatelessWidget {
                 children: [
                   Stack(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: const Color(0xFFD32F2F),
-                            width: 3,
-                          ),
-                        ),
-                        child: CircleAvatar(
-                          radius: 60,
-                          backgroundColor: Colors.grey[200],
-                          child: const Icon(
-                            Icons.person,
-                            size: 60,
-                            color: Color(0xFFD32F2F),
-                          ),
-                        ),
+                      ProfileAvatar(
+                        profileImageBase64: profileImage,
+                        radius: 60,
+                        borderColor: const Color(0xFFD32F2F),
+                        borderWidth: 4,
                       ),
                       Positioned(
                         right: 0,
@@ -204,13 +218,20 @@ class ProfilePage extends StatelessWidget {
                     icon: Icons.edit_outlined,
                     title: 'Editar información',
                     subtitle: 'Actualiza tus datos personales',
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Función próximamente disponible'),
-                          backgroundColor: Color(0xFFD32F2F),
+                    onTap: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => EditProfilePage(user: _currentUser!),
                         ),
                       );
+                      
+                      // Si se actualizó el perfil, recargar los datos
+                      if (result != null) {
+                        setState(() {
+                          _currentUser = result;
+                        });
+                      }
                     },
                   ),
                   const Divider(height: 1),
@@ -347,7 +368,7 @@ class ProfilePage extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '© 2024 Universidad de Talca',
+                  '© 2025 Universidad de Talca',
                   style: TextStyle(
                     color: Colors.grey[600],
                     fontSize: 12,
