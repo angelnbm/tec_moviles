@@ -33,7 +33,7 @@ class _NewReportPageState extends State<NewReportPage> {
   bool _isPlaying = false;
   bool _isRecorderInitialized = false;
   Duration _recordDuration = Duration.zero;
-  static const int maxRecordingDuration = 120;
+  static const int maxRecordingDuration = 60;
 
   @override
   void initState() {

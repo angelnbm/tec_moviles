@@ -31,7 +31,7 @@ router.get('/my-reports', auth, async (req, res) => {
 
 //Crear un nuevo reporte
 router.post('/', auth, async (req, res) => {
-  const { title, description, category, location, latitude, longitude, imageUrl } = req.body;
+  const { title, description, category, location, latitude, longitude, imageUrl, audioUrl } = req.body;
   
   try {
     const newReport = new Report({

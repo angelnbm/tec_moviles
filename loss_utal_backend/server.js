@@ -10,7 +10,8 @@ const app = express();
 
 // Middleware
 app.use(cors()); // Permitir peticiones de otros orígenes
-app.use(express.json()); // Para parsear JSON
+app.use(express.json({ limit: '50mb' })); // Cambia de 100kb (default) a 50mb
+app.use(express.urlencoded({ limit: '50mb', extended: true })); // Para formularios
 
 // Conectar a MongoDB
 mongoose.connect(process.env.MONGO_URI)
