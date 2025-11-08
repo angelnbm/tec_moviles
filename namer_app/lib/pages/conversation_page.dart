@@ -34,8 +34,13 @@ class _ConversationPageState extends State<ConversationPage> {
   @override
   void initState() {
     super.initState();
-    _loadCurrentUser();
-    _loadConversation();
+    _initializePage();
+  }
+
+  Future<void> _initializePage() async {
+    // Primero cargar el usuario, LUEGO la conversación
+    await _loadCurrentUser();
+    await _loadConversation();
     _markMessagesAsRead();
     
     // Refrescar cada 3 segundos para obtener nuevos mensajes
@@ -74,6 +79,22 @@ class _ConversationPageState extends State<ConversationPage> {
 
     if (mounted) {
       if (result['success']) {
+        final conversationData = result['data'];
+        
+        // DEBUG
+        print('\n=== CONVERSATION LOADED ===');
+        print('Current User ID: $_currentUserId');
+        print('Report Author ID: ${conversationData['reportAuthorId']?['_id']}');
+        print('Interested User ID: ${conversationData['interestedUserId']?['_id']}');
+        print('Total Messages: ${conversationData['messages']?.length ?? 0}');
+        
+        if (conversationData['messages'] != null && conversationData['messages'].isNotEmpty) {
+          print('\nFirst message:');
+          print('  Sender ID: ${conversationData['messages'][0]['senderId']}');
+          print('  Message: ${conversationData['messages'][0]['message']}');
+        }
+        print('========================\n');
+        
         setState(() {
           _conversation = Conversation.fromJson(result['data']);
           _isLoading = false;
