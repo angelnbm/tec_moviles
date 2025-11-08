@@ -26,12 +26,34 @@ class _ObjectDetailPageState extends State<ObjectDetailPage> {
   StreamSubscription<Duration>? _durationSubscription;
   bool _conversationExists = false;
   bool _isCheckingConversation = true;
+  bool _isOwnReport = false;
+  String? _currentUserName;
+  String? _currentUserProfileImage;
 
   @override
   void initState() {
     super.initState();
     _setupAudioListeners();
     _checkExistingConversation();
+    _checkIfOwnReport();
+  }
+
+  Future<void> _checkIfOwnReport() async {
+    final userData = await ApiService.getUserData();
+    final currentUserId = userData?['_id']?.toString() ?? '';
+    final reportUserId = widget.report['userId'] is Map
+        ? widget.report['userId']['_id']?.toString() ?? ''
+        : widget.report['userId']?.toString() ?? '';
+
+    if (mounted) {
+      setState(() {
+        _isOwnReport = currentUserId.isNotEmpty && currentUserId == reportUserId;
+        if (_isOwnReport && userData != null) {
+          _currentUserName = '${userData['name']} ${userData['lastName']}';
+          _currentUserProfileImage = userData['profileImage'];
+        }
+      });
+    }
   }
 
   Future<void> _checkExistingConversation() async {
@@ -439,11 +461,21 @@ class _ObjectDetailPageState extends State<ObjectDetailPage> {
 
     // Usuario information
     final userId = widget.report['userId'];
-    final userName = userId != null && userId is Map
-        ? '${userId['name']} ${userId['lastName']}'
-        : 'Usuario UTALCA';
-    final userProfileImage =
-        userId != null && userId is Map ? userId['profileImage'] : null;
+    String userName;
+    String? userProfileImage;
+    
+    // Si es el propio reporte del usuario, usar datos del usuario actual
+    if (_isOwnReport && _currentUserName != null) {
+      userName = _currentUserName!;
+      userProfileImage = _currentUserProfileImage;
+    } else {
+      // Usuario de otro reporte
+      userName = userId != null && userId is Map
+          ? '${userId['name']} ${userId['lastName']}'
+          : 'Usuario UTALCA';
+      userProfileImage =
+          userId != null && userId is Map ? userId['profileImage'] : null;
+    }
 
     final audioUrl = widget.report['audioUrl'];
     final hasAudio = audioUrl != null && audioUrl.toString().isNotEmpty;
@@ -967,67 +999,69 @@ class _ObjectDetailPageState extends State<ObjectDetailPage> {
             ),
           ),
           const SizedBox(height: 20),
-          // Botón de contactar
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            child: SizedBox(
-              width: double.infinity,
-              child: _isCheckingConversation
-                  ? ElevatedButton(
-                      onPressed: null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFD32F2F),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 2,
-                        disabledBackgroundColor: Colors.grey.shade400,
-                      ),
-                      child: const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      ),
-                    )
-                  : ElevatedButton(
-                      onPressed: _showContactDialog,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFD32F2F),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 2,
-                        shadowColor: const Color(0xFFD32F2F).withOpacity(0.3),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            _conversationExists ? Icons.chat : Icons.message,
-                            size: 20,
+          // Botón de contactar (solo si no es el propio reporte)
+          if (!_isOwnReport)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: _isCheckingConversation
+                    ? ElevatedButton(
+                        onPressed: null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFD32F2F),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          const SizedBox(width: 10),
-                          Text(
-                            _conversationExists ? 'Ver Chat' : 'Contactar',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.5,
+                          elevation: 2,
+                          disabledBackgroundColor: Colors.grey.shade400,
+                        ),
+                        child: const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        ),
+                      )
+                    : ElevatedButton(
+                        onPressed: _showContactDialog,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFD32F2F),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 2,
+                          shadowColor: const Color(0xFFD32F2F).withOpacity(0.3),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              _conversationExists ? Icons.chat : Icons.message,
+                              size: 20,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 10),
+                            Text(
+                              _conversationExists ? 'Ver Chat' : 'Contactar',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
+              ),
             ),
-          ),
-          const SizedBox(height: 30),
+          if (!_isOwnReport) const SizedBox(height: 30),
+          if (_isOwnReport) const SizedBox(height: 20),
           // Footer
           Column(
             children: [
