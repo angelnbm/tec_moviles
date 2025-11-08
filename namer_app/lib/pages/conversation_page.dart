@@ -58,7 +58,7 @@ class _ConversationPageState extends State<ConversationPage> {
     final userData = await ApiService.getUserData();
     if (userData != null && mounted) {
       setState(() {
-        _currentUserId = userData['_id'];
+        _currentUserId = userData['_id']?.toString();
       });
     }
   }
@@ -232,7 +232,7 @@ class _ConversationPageState extends State<ConversationPage> {
                         itemCount: _conversation!.messages.length,
                         itemBuilder: (context, index) {
                           final message = _conversation!.messages[index];
-                          final isMine = message.senderId == _currentUserId;
+                          final isMine = message.senderId.toString() == _currentUserId?.toString();
                           final showDate = index == 0 ||
                               !_isSameDay(
                                 message.createdAt,

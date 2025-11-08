@@ -14,11 +14,19 @@ class Message {
   });
 
   factory Message.fromJson(Map<String, dynamic> json) {
+    // Parsear senderId - puede venir como String o como ObjectId
+    String parsedSenderId = '';
+    if (json['senderId'] is String) {
+      parsedSenderId = json['senderId'];
+    } else if (json['senderId'] is Map && json['senderId']['_id'] != null) {
+      parsedSenderId = json['senderId']['_id'].toString();
+    } else if (json['senderId'] != null) {
+      parsedSenderId = json['senderId'].toString();
+    }
+    
     return Message(
-      id: json['_id'] ?? '',
-      senderId: json['senderId'] is String 
-          ? json['senderId'] 
-          : json['senderId']['_id'] ?? '',
+      id: json['_id']?.toString() ?? '',
+      senderId: parsedSenderId,
       message: json['message'] ?? '',
       createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
       isRead: json['isRead'] ?? false,

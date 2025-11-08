@@ -28,7 +28,7 @@ class _MessagesPageState extends State<MessagesPage> {
     final userData = await ApiService.getUserData();
     if (userData != null && mounted) {
       setState(() {
-        _currentUserId = userData['_id'];
+        _currentUserId = userData['_id']?.toString();
       });
     }
   }
