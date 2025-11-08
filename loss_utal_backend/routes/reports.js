@@ -28,6 +28,7 @@ router.get('/', async (req, res) => {
 router.get('/my-reports', auth, async (req, res) => {
   try {
     const reports = await Report.find({ userId: req.user.id })
+      .populate('userId', 'name lastName email profileImage')
       .sort({ createdAt: -1 });
     res.json(reports);
   } catch (err) {

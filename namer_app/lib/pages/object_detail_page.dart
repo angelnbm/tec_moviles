@@ -464,17 +464,19 @@ class _ObjectDetailPageState extends State<ObjectDetailPage> {
     String userName;
     String? userProfileImage;
     
-    // Si es el propio reporte del usuario, usar datos del usuario actual
+    // Si es el propio reporte del usuario Y ya tenemos los datos cargados
     if (_isOwnReport && _currentUserName != null) {
       userName = _currentUserName!;
       userProfileImage = _currentUserProfileImage;
+    } else if (userId != null && userId is Map) {
+      // Si userId es un objeto Map con los datos completos del usuario
+      userName = '${userId['name']} ${userId['lastName']}';
+      userProfileImage = userId['profileImage'];
     } else {
-      // Usuario de otro reporte
-      userName = userId != null && userId is Map
-          ? '${userId['name']} ${userId['lastName']}'
-          : 'Usuario UTALCA';
-      userProfileImage =
-          userId != null && userId is Map ? userId['profileImage'] : null;
+      // Fallback: Si es propio reporte pero aún no tenemos los datos, mostrar "Tú"
+      // Si no es propio reporte y no hay datos, mostrar "Usuario UTALCA"
+      userName = _isOwnReport ? 'Tú' : 'Usuario UTALCA';
+      userProfileImage = null;
     }
 
     final audioUrl = widget.report['audioUrl'];
