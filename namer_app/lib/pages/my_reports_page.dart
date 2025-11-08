@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:namer_app/pages/object_detail_page.dart';
 import 'package:namer_app/pages/edit_report_page.dart';
+import 'package:namer_app/pages/messages_page.dart';
 import 'package:namer_app/services/api_service.dart';
 import 'package:namer_app/widgets/report_image.dart';
 
@@ -16,11 +17,22 @@ class _MyReportsPageState extends State<MyReportsPage> {
   List<dynamic> _myReports = [];
   bool _isLoading = true;
   String? _errorMessage;
+  int _unreadMessagesCount = 0;
 
   @override
   void initState() {
     super.initState();
     _loadMyReports();
+    _loadUnreadCount();
+  }
+
+  Future<void> _loadUnreadCount() async {
+    final result = await ApiService.getUnreadCount();
+    if (mounted && result['success']) {
+      setState(() {
+        _unreadMessagesCount = result['data']['unreadCount'] ?? 0;
+      });
+    }
   }
 
   Future<void> _loadMyReports() async {
@@ -92,6 +104,57 @@ class _MyReportsPageState extends State<MyReportsPage> {
           ],
         ),
         actions: [
+          // Botón de mensajes con badge
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chat_bubble_outline,
+                    color: Color(0xFFD32F2F)),
+                onPressed: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const MessagesPage(),
+                    ),
+                  );
+                  
+                  // Recargar contador al volver
+                  if (result == true || result == null) {
+                    _loadUnreadCount();
+                  }
+                },
+                tooltip: 'Mensajes',
+              ),
+              if (_unreadMessagesCount > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFD32F2F),
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 18,
+                      minHeight: 18,
+                    ),
+                    child: Center(
+                      child: Text(
+                        _unreadMessagesCount > 9
+                            ? '9+'
+                            : '$_unreadMessagesCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.filter_list, color: Color(0xFFD32F2F)),
             onPressed: () {

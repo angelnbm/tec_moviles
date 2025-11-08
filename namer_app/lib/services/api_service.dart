@@ -427,4 +427,243 @@ class ApiService {
       return {'success': false, 'message': 'Error de conexión: $e'};
     }
   }
+
+  // Conversations endpoints
+  
+  // Verificar si existe una conversación para un reporte
+  static Future<Map<String, dynamic>> checkConversationForReport(String reportId) async {
+    try {
+      final token = await getToken();
+      if (token == null) {
+        return {'success': false, 'message': 'No autenticado'};
+      }
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/conversations/check/$reportId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {'success': true, 'data': data};
+      } else {
+        return {'success': false, 'message': 'Error al verificar conversación'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+  
+  // Crear o obtener una conversación
+  static Future<Map<String, dynamic>> createConversation({
+    required String reportId,
+    String? initialMessage,
+  }) async {
+    try {
+      final token = await getToken();
+      if (token == null) {
+        return {'success': false, 'message': 'No autenticado'};
+      }
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/conversations'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token,
+        },
+        body: jsonEncode({
+          'reportId': reportId,
+          'initialMessage': initialMessage,
+        }),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        return {'success': true, 'data': data};
+      } else {
+        final error = jsonDecode(response.body);
+        return {
+          'success': false,
+          'message': error['message'] ?? 'Error al crear conversación'
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+
+  // Obtener todas las conversaciones del usuario
+  static Future<Map<String, dynamic>> getMyConversations() async {
+    try {
+      final token = await getToken();
+      if (token == null) {
+        return {'success': false, 'message': 'No autenticado'};
+      }
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/conversations/my-conversations'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {'success': true, 'data': data};
+      } else {
+        return {'success': false, 'message': 'Error al cargar conversaciones'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+
+  // Obtener conversaciones de un reporte específico
+  static Future<Map<String, dynamic>> getReportConversations(String reportId) async {
+    try {
+      final token = await getToken();
+      if (token == null) {
+        return {'success': false, 'message': 'No autenticado'};
+      }
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/conversations/report/$reportId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {'success': true, 'data': data};
+      } else {
+        return {'success': false, 'message': 'Error al cargar conversaciones del reporte'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+
+  // Obtener una conversación específica
+  static Future<Map<String, dynamic>> getConversation(String conversationId) async {
+    try {
+      final token = await getToken();
+      if (token == null) {
+        return {'success': false, 'message': 'No autenticado'};
+      }
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/conversations/$conversationId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {'success': true, 'data': data};
+      } else {
+        return {'success': false, 'message': 'Error al cargar conversación'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+
+  // Enviar un mensaje en una conversación
+  static Future<Map<String, dynamic>> sendMessage({
+    required String conversationId,
+    required String message,
+  }) async {
+    try {
+      final token = await getToken();
+      if (token == null) {
+        return {'success': false, 'message': 'No autenticado'};
+      }
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/conversations/$conversationId/messages'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token,
+        },
+        body: jsonEncode({
+          'message': message,
+        }),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        return {'success': true, 'data': data};
+      } else {
+        final error = jsonDecode(response.body);
+        return {
+          'success': false,
+          'message': error['message'] ?? 'Error al enviar mensaje'
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+
+  // Marcar mensajes como leídos
+  static Future<Map<String, dynamic>> markMessagesAsRead(String conversationId) async {
+    try {
+      final token = await getToken();
+      if (token == null) {
+        return {'success': false, 'message': 'No autenticado'};
+      }
+
+      final response = await http.put(
+        Uri.parse('$baseUrl/conversations/$conversationId/mark-read'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {'success': true, 'data': data};
+      } else {
+        return {'success': false, 'message': 'Error al marcar como leído'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+
+  // Obtener conteo de mensajes no leídos
+  static Future<Map<String, dynamic>> getUnreadCount() async {
+    try {
+      final token = await getToken();
+      if (token == null) {
+        return {'success': false, 'message': 'No autenticado'};
+      }
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/conversations/unread/count'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {'success': true, 'data': data};
+      } else {
+        return {'success': false, 'message': 'Error al obtener conteo'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
 }
