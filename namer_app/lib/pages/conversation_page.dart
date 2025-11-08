@@ -61,9 +61,12 @@ class _ConversationPageState extends State<ConversationPage> {
 
   Future<void> _loadCurrentUser() async {
     final userData = await ApiService.getUserData();
+    
     if (userData != null && mounted) {
+      // Backend usa 'id' en lugar de '_id'
+      final userId = userData['id']?.toString();
       setState(() {
-        _currentUserId = userData['_id']?.toString();
+        _currentUserId = userId;
       });
     }
   }
@@ -79,22 +82,6 @@ class _ConversationPageState extends State<ConversationPage> {
 
     if (mounted) {
       if (result['success']) {
-        final conversationData = result['data'];
-        
-        // DEBUG
-        print('\n=== CONVERSATION LOADED ===');
-        print('Current User ID: $_currentUserId');
-        print('Report Author ID: ${conversationData['reportAuthorId']?['_id']}');
-        print('Interested User ID: ${conversationData['interestedUserId']?['_id']}');
-        print('Total Messages: ${conversationData['messages']?.length ?? 0}');
-        
-        if (conversationData['messages'] != null && conversationData['messages'].isNotEmpty) {
-          print('\nFirst message:');
-          print('  Sender ID: ${conversationData['messages'][0]['senderId']}');
-          print('  Message: ${conversationData['messages'][0]['message']}');
-        }
-        print('========================\n');
-        
         setState(() {
           _conversation = Conversation.fromJson(result['data']);
           _isLoading = false;

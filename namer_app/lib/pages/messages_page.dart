@@ -31,9 +31,12 @@ class _MessagesPageState extends State<MessagesPage> {
 
   Future<void> _loadCurrentUser() async {
     final userData = await ApiService.getUserData();
+    
     if (userData != null && mounted) {
+      // Backend usa 'id' en lugar de '_id'
+      final userId = userData['id']?.toString();
       setState(() {
-        _currentUserId = userData['_id']?.toString();
+        _currentUserId = userId;
       });
     }
   }
@@ -157,21 +160,9 @@ class _MessagesPageState extends State<MessagesPage> {
                       final reportAuthorIdStr = conversation.reportAuthorId.toString();
                       final isAuthor = currentUserIdStr == reportAuthorIdStr;
                       
-                      // DEBUG
-                      print('\n=== CONVERSACIÓN ${index + 1} ===');
-                      print('Current User ID: $currentUserIdStr');
-                      print('Report Author ID: $reportAuthorIdStr');
-                      print('Interested User ID: ${conversation.interestedUserId}');
-                      print('Is Author? $isAuthor');
-                      print('Report Author Name: ${conversation.reportAuthorData['name']} ${conversation.reportAuthorData['lastName']}');
-                      print('Interested User Name: ${conversation.interestedUserData['name']} ${conversation.interestedUserData['lastName']}');
-                      
                       final otherUser = isAuthor
                           ? conversation.interestedUserData
                           : conversation.reportAuthorData;
-                      
-                      print('Other User Selected: ${otherUser['name']} ${otherUser['lastName']}');
-                      print('====================\n');
 
                       final otherUserName =
                           '${otherUser['name']} ${otherUser['lastName']}';
