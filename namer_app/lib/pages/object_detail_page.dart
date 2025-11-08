@@ -168,10 +168,11 @@ class _ObjectDetailPageState extends State<ObjectDetailPage> {
       // Ya existe una conversación, ir directamente al chat
       final conversation = checkResult['data']['conversation'];
       final userData = await ApiService.getUserData();
-      final currentUserId = userData?['_id'];
+      final currentUserId = userData?['_id']?.toString() ?? '';
 
       // Determinar quién es el otro usuario
-      final isAuthor = currentUserId == conversation['reportAuthorId']['_id'];
+      final reportAuthorId = conversation['reportAuthorId']['_id']?.toString() ?? '';
+      final isAuthor = currentUserId == reportAuthorId;
       final otherUser = isAuthor
           ? conversation['interestedUserId']
           : conversation['reportAuthorId'];
@@ -346,11 +347,11 @@ class _ObjectDetailPageState extends State<ObjectDetailPage> {
                                     final conversation = result['data'];
                                     final userData =
                                         await ApiService.getUserData();
-                                    final currentUserId = userData?['_id'];
+                                    final currentUserId = userData?['_id']?.toString() ?? '';
 
                                     // Determinar quién es el otro usuario
-                                    final isAuthor = currentUserId ==
-                                        conversation['reportAuthorId']['_id'];
+                                    final reportAuthorId = conversation['reportAuthorId']['_id']?.toString() ?? '';
+                                    final isAuthor = currentUserId == reportAuthorId;
                                     final otherUser = isAuthor
                                         ? conversation['interestedUserId']
                                         : conversation['reportAuthorId'];

@@ -147,8 +147,11 @@ class _MessagesPageState extends State<MessagesPage> {
                       final conversation = _conversations[index];
                       
                       // Determinar quién es el otro usuario
-                      final isAuthor =
-                          _currentUserId == conversation.reportAuthorId;
+                      // Convertir ambos IDs a String para comparación segura
+                      final currentUserIdStr = _currentUserId?.toString() ?? '';
+                      final reportAuthorIdStr = conversation.reportAuthorId.toString();
+                      final isAuthor = currentUserIdStr == reportAuthorIdStr;
+                      
                       final otherUser = isAuthor
                           ? conversation.interestedUserData
                           : conversation.reportAuthorData;
