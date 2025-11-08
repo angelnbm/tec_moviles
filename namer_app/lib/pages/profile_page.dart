@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:namer_app/pages/login_page.dart';
 import 'package:namer_app/pages/edit_profile_page.dart';
+import 'package:namer_app/pages/settings_page.dart';
 import 'package:namer_app/services/api_service.dart';
 import 'package:namer_app/widgets/profile_avatar.dart';
 
@@ -232,6 +233,21 @@ class _ProfilePageState extends State<ProfilePage> {
                           _currentUser = result;
                         });
                       }
+                    },
+                  ),
+                  const Divider(height: 1),
+                  _buildOptionTile(
+                    context: context,
+                    icon: Icons.settings_outlined,
+                    title: 'Configuración de servidor',
+                    subtitle: 'Cambia la URL del backend',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SettingsPage(),
+                        ),
+                      );
                     },
                   ),
                   const Divider(height: 1),

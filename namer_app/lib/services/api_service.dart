@@ -16,9 +16,22 @@ class ApiService {
     if (fromEnv.isNotEmpty) {
       return fromEnv;
     }
-    // Si no se proporciona, usa la IP del emulador como valor por defecto.
-    const defaultUrl = 'http://10.0.2.2:5000/api';
-    return defaultUrl;
+    
+    // Detectar plataforma y retornar URL apropiada
+    if (kIsWeb) {
+      // Para web, usa localhost
+      return 'http://localhost:5000/api';
+    } else if (Platform.isAndroid) {
+      // Para Android emulador: 10.0.2.2
+      // Para Android dispositivo físico: necesitas la IP de tu PC
+      return 'http://10.0.2.2:5000/api';
+    } else if (Platform.isIOS) {
+      // Para iOS emulador/simulador
+      return 'http://localhost:5000/api';
+    } else {
+      // Desktop (Windows, Linux, macOS)
+      return 'http://localhost:5000/api';
+    }
   }
 
   static Future<void> initBaseUrl() async {
