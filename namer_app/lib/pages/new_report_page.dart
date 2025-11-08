@@ -12,6 +12,7 @@ import 'package:flutter_sound/flutter_sound.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:audioplayers/audioplayers.dart' as ap;
 import 'package:permission_handler/permission_handler.dart' as ph;
+import 'dart:async';
 
 class NewReportPage extends StatefulWidget {
   const NewReportPage({super.key});
@@ -34,18 +35,36 @@ class _NewReportPageState extends State<NewReportPage> {
   bool _isRecording = false;
   bool _isPlaying = false;
   bool _isRecorderInitialized = false;
+  bool _isPaused = false;
   Duration _recordDuration = Duration.zero;
+  Duration _currentPlaybackPosition = Duration.zero;
+  Duration _totalAudioDuration = Duration.zero;
   static const int maxRecordingDuration = 60;
+  StreamSubscription<Duration>? _positionSubscription;
+  StreamSubscription<ap.PlayerState>? _playerStateSubscription;
+  StreamSubscription<Duration>? _durationSubscription;
 
   @override
   void initState() {
     super.initState();
     _initRecorder();
+    _setupAudioListeners();
+  }
 
+  // NUEVO: Método separado para configurar los listeners
+  void _setupAudioListeners() {
     // Escuchar cambios en el estado del reproductor
-    _audioPlayer.onPlayerStateChanged.listen((state) {
+    _playerStateSubscription =
+        _audioPlayer.onPlayerStateChanged.listen((state) {
       setState(() {
         _isPlaying = state == ap.PlayerState.playing;
+      });
+    });
+
+    // Escuchar la duración total del audio
+    _durationSubscription = _audioPlayer.onDurationChanged.listen((duration) {
+      setState(() {
+        _totalAudioDuration = duration;
       });
     });
 
@@ -53,6 +72,7 @@ class _NewReportPageState extends State<NewReportPage> {
     _audioPlayer.onPlayerComplete.listen((event) {
       setState(() {
         _isPlaying = false;
+        _currentPlaybackPosition = Duration.zero;
       });
     });
   }
@@ -75,6 +95,10 @@ class _NewReportPageState extends State<NewReportPage> {
     _locationController.dispose();
     _audioRecorder.closeRecorder();
     _audioPlayer.dispose();
+    // NUEVO: Cancelar subscripciones
+    _positionSubscription?.cancel();
+    _playerStateSubscription?.cancel();
+    _durationSubscription?.cancel();
     super.dispose();
   }
 
@@ -103,6 +127,7 @@ class _NewReportPageState extends State<NewReportPage> {
 
       setState(() {
         _isRecording = true;
+        _isPaused = false;
         _recordDuration = Duration.zero;
         _audioPath = filePath;
       });
@@ -114,10 +139,34 @@ class _NewReportPageState extends State<NewReportPage> {
     }
   }
 
+  Future<void> _togglePauseRecording() async {
+    if (!_isRecording) return;
+
+    try {
+      if (_isPaused) {
+        // Reanudar grabación
+        await _audioRecorder.resumeRecorder();
+        setState(() {
+          _isPaused = false;
+        });
+        _showSnackBar('Grabación reanudada', Colors.green);
+      } else {
+        // Pausar grabación
+        await _audioRecorder.pauseRecorder();
+        setState(() {
+          _isPaused = true;
+        });
+        _showSnackBar('Grabación pausada', Colors.orange);
+      }
+    } catch (e) {
+      _showSnackBar('Error al pausar/reanudar: $e', Colors.red);
+    }
+  }
+
   void _updateRecordingDuration() async {
     while (_isRecording) {
       await Future.delayed(const Duration(seconds: 1));
-      if (_isRecording) {
+      if (_isRecording && !_isPaused) {
         setState(() {
           _recordDuration += const Duration(seconds: 1);
         });
@@ -142,6 +191,7 @@ class _NewReportPageState extends State<NewReportPage> {
 
       setState(() {
         _isRecording = false;
+        _isPaused = false;
       });
 
       _showSnackBar(
@@ -158,9 +208,27 @@ class _NewReportPageState extends State<NewReportPage> {
       if (_isPlaying) {
         // Pausar audio
         await _audioPlayer.pause();
+        // MODIFICADO: Cancelar la subscripción cuando se pausa
+        await _positionSubscription?.cancel();
+        _positionSubscription = null;
       } else {
-        // Reproducir audio
-        await _audioPlayer.play(ap.DeviceFileSource(_audioPath!));
+        // MODIFICADO: Iniciar subscripción de posición solo al reproducir
+        _positionSubscription =
+            _audioPlayer.onPositionChanged.listen((position) {
+          if (_isPlaying) {
+            // Solo actualizar si está reproduciendo
+            setState(() {
+              _currentPlaybackPosition = position;
+            });
+          }
+        });
+
+        if (_currentPlaybackPosition.inSeconds > 0 &&
+            _currentPlaybackPosition < _totalAudioDuration) {
+          await _audioPlayer.resume();
+        } else {
+          await _audioPlayer.play(ap.DeviceFileSource(_audioPath!));
+        }
       }
     } catch (e) {
       _showSnackBar('Error al reproducir audio: $e', Colors.red);
@@ -170,19 +238,33 @@ class _NewReportPageState extends State<NewReportPage> {
   Future<void> _stopAudio() async {
     try {
       await _audioPlayer.stop();
+      await _positionSubscription?.cancel();
       setState(() {
         _isPlaying = false;
+        _currentPlaybackPosition = Duration.zero;
       });
     } catch (e) {
       _showSnackBar('Error al detener reproducción: $e', Colors.red);
     }
   }
 
-  void _deleteAudio() {
-    _stopAudio();
+  void _deleteAudio() async {
+    if (_isPlaying) {
+      await _stopAudio();
+    }
+    if (_isRecording) {
+      await _audioRecorder.stopRecorder();
+    }
+    await _positionSubscription?.cancel();
+    _positionSubscription = null;
     setState(() {
       _audioPath = null;
       _recordDuration = Duration.zero;
+      _currentPlaybackPosition = Duration.zero;
+      _totalAudioDuration = Duration.zero;
+      _isPlaying = false;
+      _isRecording = false;
+      _isPaused = false;
     });
     _showSnackBar('Audio eliminado', Colors.orange);
   }
@@ -317,7 +399,7 @@ class _NewReportPageState extends State<NewReportPage> {
     if (pickedFile != null) {
       try {
         final bytes = await pickedFile.readAsBytes();
-        
+
         // Comprimir la imagen
         final compressedBytes = await FlutterImageCompress.compressWithList(
           bytes,
@@ -325,7 +407,7 @@ class _NewReportPageState extends State<NewReportPage> {
           minHeight: 300,
           quality: 60,
         );
-        
+
         setState(() {
           _selectedImageBytes = Uint8List.fromList(compressedBytes);
         });
@@ -394,7 +476,8 @@ class _NewReportPageState extends State<NewReportPage> {
       // Preparar la imagen en base64 si existe
       String? imageBase64;
       if (_selectedImageBytes != null) {
-        imageBase64 = 'data:image/jpeg;base64,${base64Encode(_selectedImageBytes!)}';
+        imageBase64 =
+            'data:image/jpeg;base64,${base64Encode(_selectedImageBytes!)}';
       }
 
       String? audioBase64;
@@ -811,8 +894,12 @@ class _NewReportPageState extends State<NewReportPage> {
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: _pickImage,
-                      icon: Icon(_selectedImageBytes == null ? Icons.add_photo_alternate : Icons.edit),
-                      label: Text(_selectedImageBytes == null ? 'Agregar imagen' : 'Cambiar imagen'),
+                      icon: Icon(_selectedImageBytes == null
+                          ? Icons.add_photo_alternate
+                          : Icons.edit),
+                      label: Text(_selectedImageBytes == null
+                          ? 'Agregar imagen'
+                          : 'Cambiar imagen'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFFD32F2F),
                         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -871,63 +958,122 @@ class _NewReportPageState extends State<NewReportPage> {
                     ],
                   ),
                   const SizedBox(height: 20),
-
-                  // Controles de grabación
                   if (_audioPath == null) ...[
                     if (_isRecording) ...[
+                      // MODIFICADO: Nueva UI durante grabación con pausa
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.red.shade50,
+                          color: _isPaused
+                              ? Colors.orange.shade50
+                              : Colors.red.shade50,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.red.shade200),
+                          border: Border.all(
+                            color: _isPaused
+                                ? Colors.orange.shade200
+                                : Colors.red.shade200,
+                          ),
                         ),
-                        child: Row(
+                        child: Column(
                           children: [
-                            Container(
-                              width: 12,
-                              height: 12,
-                              decoration: const BoxDecoration(
-                                color: Colors.red,
-                                shape: BoxShape.circle,
-                              ),
+                            Row(
+                              children: [
+                                // NUEVO: Botón de pausa/reanudar
+                                Container(
+                                  decoration: BoxDecoration(
+                                    color:
+                                        _isPaused ? Colors.orange : Colors.red,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: (_isPaused
+                                                ? Colors.orange
+                                                : Colors.red)
+                                            .withOpacity(0.3),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: IconButton(
+                                    icon: Icon(
+                                      _isPaused
+                                          ? Icons.play_arrow
+                                          : Icons.pause,
+                                      color: Colors.white,
+                                      size: 32,
+                                    ),
+                                    onPressed: _togglePauseRecording,
+                                    tooltip: _isPaused ? 'Reanudar' : 'Pausar',
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          if (!_isPaused) ...[
+                                            Container(
+                                              width: 12,
+                                              height: 12,
+                                              decoration: const BoxDecoration(
+                                                color: Colors.red,
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                          ],
+                                          Text(
+                                            _isPaused ? 'Pausada' : 'Grabando',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                              color: _isPaused
+                                                  ? Colors.orange.shade700
+                                                  : Colors.red,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        _formatDuration(_recordDuration),
+                                        style: TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w600,
+                                          color: _isPaused
+                                              ? Colors.orange.shade700
+                                              : Colors.red,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 12),
-                            const Text(
-                              'Grabando',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.red,
-                              ),
-                            ),
-                            const Spacer(),
-                            Text(
-                              _formatDuration(_recordDuration),
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.red,
+                            const SizedBox(height: 12),
+                            // Botón de detener
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: _stopRecording,
+                                icon: const Icon(Icons.stop, size: 20),
+                                label: const Text('Finalizar grabación'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.grey.shade700,
+                                  foregroundColor: Colors.white,
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
                               ),
                             ),
                           ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _stopRecording,
-                          icon: const Icon(Icons.stop),
-                          label: const Text('Detener grabación'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
                         ),
                       ),
                     ] else ...[
@@ -949,7 +1095,7 @@ class _NewReportPageState extends State<NewReportPage> {
                       ),
                     ],
                   ] else ...[
-                    // Reproductor de audio
+                    // Audio grabado
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -961,7 +1107,6 @@ class _NewReportPageState extends State<NewReportPage> {
                         children: [
                           Row(
                             children: [
-                              // Botón de play/pause
                               IconButton(
                                 icon: Icon(
                                   _isPlaying
@@ -996,46 +1141,46 @@ class _NewReportPageState extends State<NewReportPage> {
                                   ],
                                 ),
                               ),
-                              // Botón de parar
-                              if (_isPlaying)
-                                IconButton(
-                                  icon:
-                                      Icon(Icons.stop, color: Colors.grey[700]),
-                                  onPressed: _stopAudio,
-                                  tooltip: 'Detener',
+                              // MODIFICADO: Agregar GestureDetector para prevenir propagación de eventos
+                              GestureDetector(
+                                onTap: () {
+                                  // Llamar directamente sin propagación
+                                  _deleteAudio();
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red.shade50,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.delete,
+                                    color: Colors.red,
+                                    size: 24,
+                                  ),
                                 ),
-                              // Botón de eliminar
-                              IconButton(
-                                icon:
-                                    const Icon(Icons.delete, color: Colors.red),
-                                onPressed: _deleteAudio,
-                                tooltip: 'Eliminar audio',
                               ),
                             ],
                           ),
+                          if (_totalAudioDuration.inSeconds > 0 && _isPlaying)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: LinearProgressIndicator(
+                                value: _currentPlaybackPosition.inMilliseconds /
+                                    _totalAudioDuration.inMilliseconds,
+                                backgroundColor: Colors.grey[300],
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.green.shade700),
+                                minHeight: 4,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
                         ],
                       ),
                     ),
                     const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          _deleteAudio();
-                          _startRecording();
-                        },
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Grabar nuevo audio'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFFD32F2F),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          side: const BorderSide(color: Color(0xFFD32F2F)),
-                        ),
-                      ),
-                    ),
+                    // REMOVIDO: Eliminar el botón "Regrabar audio" para evitar confusión
+                    // Después de borrar, el usuario simplemente puede presionar "Grabar audio" de nuevo
                   ],
                   const SizedBox(height: 8),
                   Text(

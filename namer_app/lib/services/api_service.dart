@@ -6,14 +6,30 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
+  static String? _baseUrl;
+
   static String get baseUrl {
-    if (kIsWeb) {
-      return 'http://localhost:5000/api'; // Web
-    } else if (Platform.isAndroid) {
-      return 'http://10.0.2.2:5000/api'; // Android Emulator
-    } else {
-      return 'http://localhost:5000/api'; // iOS/Desktop
+    if (_baseUrl != null && _baseUrl!.isNotEmpty) {
+      return _baseUrl!;
     }
+    const fromEnv = String.fromEnvironment('BASE_URL');
+    if (fromEnv.isNotEmpty) {
+      return fromEnv;
+    }
+    // Si no se proporciona, usa la IP del emulador como valor por defecto.
+    const defaultUrl = 'http://10.0.2.2:5000/api';
+    return defaultUrl;
+  }
+
+  static Future<void> initBaseUrl() async {
+    final prefs = await SharedPreferences.getInstance();
+    _baseUrl = prefs.getString('base_url');
+  }
+
+  static Future<void> setBaseUrl(String url) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('base_url', url);
+    _baseUrl = url;
   }
 
   // Token management
