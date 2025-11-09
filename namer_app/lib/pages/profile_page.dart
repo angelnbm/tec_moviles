@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:namer_app/pages/login_page.dart';
 import 'package:namer_app/pages/edit_profile_page.dart';
-import 'package:namer_app/pages/settings_page.dart';
 import 'package:namer_app/services/api_service.dart';
 import 'package:namer_app/widgets/profile_avatar.dart';
+import 'package:namer_app/services/biometric_service.dart';
 
 class ProfilePage extends StatefulWidget {
   final Map<String, dynamic>? user;
@@ -16,6 +16,7 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   late Map<String, dynamic>? _currentUser;
+  bool _isBiometricEnabled = false;
 
   @override
   void initState() {
@@ -30,6 +31,46 @@ class _ProfilePageState extends State<ProfilePage> {
       setState(() {
         _currentUser = userData;
       });
+      _loadBiometricPreference();
+    }
+  }
+
+  Future<void> _loadBiometricPreference() async {
+    if (_currentUser != null) {
+      final isEnabled = await BiometricService.getBiometricPreference(_currentUser!['id']);
+      if (mounted) {
+        setState(() {
+          _isBiometricEnabled = isEnabled;
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleBiometricAuth(bool value) async {
+    if (_currentUser == null) return;
+
+    if (value) {
+      final canAuth = await BiometricService.canAuthenticate();
+      if (!canAuth) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('La autenticación biométrica no está disponible en este dispositivo.')),
+        );
+        return;
+      }
+      final didAuthenticate = await BiometricService.authenticate('Confirma tu huella para activar el inicio de sesión rápido.');
+      if (didAuthenticate) {
+        await BiometricService.setBiometricPreference(_currentUser!['id'], true);
+        setState(() { _isBiometricEnabled = true; });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Inicio de sesión con huella activado.'), backgroundColor: Colors.green),
+        );
+      }
+    } else {
+      await BiometricService.setBiometricPreference(_currentUser!['id'], false);
+      setState(() { _isBiometricEnabled = false; });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Inicio de sesión con huella desactivado.')),
+      );
     }
   }
 
@@ -236,19 +277,26 @@ class _ProfilePageState extends State<ProfilePage> {
                     },
                   ),
                   const Divider(height: 1),
-                  _buildOptionTile(
-                    context: context,
-                    icon: Icons.settings_outlined,
-                    title: 'Configuración de servidor',
-                    subtitle: 'Cambia la URL del backend',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const SettingsPage(),
-                        ),
-                      );
-                    },
+                  ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD32F2F).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.fingerprint, color: Color(0xFFD32F2F)),
+                    ),
+                    title: const Text('Inicio de sesión con huella', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                    subtitle: Text(
+                      _isBiometricEnabled ? 'Activado' : 'Desactivado',
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                    ),
+                    trailing: Switch(
+                      value: _isBiometricEnabled,
+                      onChanged: _toggleBiometricAuth,
+                      activeColor: const Color(0xFFD32F2F),
+                    ),
                   ),
                   const Divider(height: 1),
                   _buildOptionTile(

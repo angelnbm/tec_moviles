@@ -117,42 +117,164 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
-        title: const Text('Configuración de Servidor'),
+        backgroundColor: const Color(0xFFD32F2F),
+        elevation: 4,
+        shadowColor: Colors.red.withOpacity(0.4),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.settings, color: Colors.white, size: 24),
+            SizedBox(width: 10),
+            Text(
+              'Configuración',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+        centerTitle: true,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(20.0),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Header con logo
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: Column(
+                  children: [
+                    Container(
+                      height: 80,
+                      width: 80,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.red.withOpacity(0.15),
+                            blurRadius: 20,
+                            spreadRadius: 3,
+                          ),
+                        ],
+                      ),
+                      child: Image.asset('assets/images/logo.png'),
+                    ),
+                    const SizedBox(height: 12),
+                    RichText(
+                      text: const TextSpan(
+                        style: TextStyle(
+                          fontSize: 22,
+                          color: Colors.black87,
+                          fontWeight: FontWeight.w300,
+                        ),
+                        children: [
+                          TextSpan(text: 'LOSS '),
+                          TextSpan(
+                            text: 'UTALCA',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFD32F2F),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Configuración del servidor',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              // Card principal de configuración
               Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.all(20.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'URL del Servidor',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFD32F2F).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.dns,
+                              color: Color(0xFFD32F2F),
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Text(
+                            'URL del Servidor',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 8),
-                      const Text(
+                      Text(
                         'Configura la URL base del servidor backend',
-                        style: TextStyle(color: Colors.grey),
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 14,
+                        ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 20),
                       TextFormField(
                         controller: _urlController,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'URL Base',
                           hintText: 'http://10.0.2.2:5000',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.link),
+                          prefixIcon: const Icon(
+                            Icons.link,
+                            color: Color(0xFFD32F2F),
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFD32F2F),
+                              width: 2,
+                            ),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
@@ -169,66 +291,81 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ),
               const SizedBox(height: 16),
+              // Card de información de URLs
               Card(
+                elevation: 2,
                 color: Colors.blue.shade50,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: Colors.blue.shade200, width: 1),
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.all(20.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.info_outline, color: Colors.blue.shade700),
+                          Icon(Icons.info_outline, color: Colors.blue.shade700, size: 24),
                           const SizedBox(width: 8),
                           Text(
                             'URLs según dispositivo',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: Colors.blue.shade700,
+                              fontSize: 16,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
                       _buildUrlInfo('Emulador Android', 'http://10.0.2.2:5000'),
-                      const Divider(height: 16),
+                      const Divider(height: 20),
                       _buildUrlInfo('Dispositivo físico', 'http://TU_IP_LOCAL:5000'),
-                      const Divider(height: 16),
+                      const Divider(height: 20),
                       _buildUrlInfo('Web/Desktop', 'http://localhost:5000'),
                     ],
                   ),
                 ),
               ),
               const SizedBox(height: 16),
+              // Card de ayuda para dispositivo físico
               Card(
+                elevation: 2,
                 color: Colors.orange.shade50,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: Colors.orange.shade200, width: 1),
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.all(20.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.help_outline, color: Colors.orange.shade700),
+                          Icon(Icons.help_outline, color: Colors.orange.shade700, size: 24),
                           const SizedBox(width: 8),
                           Text(
                             'Para dispositivo físico',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: Colors.orange.shade700,
+                              fontSize: 16,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
                       Text(
                         '1. Obtén tu IP local con: ipconfig (Windows) o ifconfig (Mac/Linux)\n'
                         '2. Busca la dirección IPv4 (ej: 192.168.1.10)\n'
                         '3. Usa: http://TU_IP:5000\n'
                         '4. Asegúrate de estar en la misma red WiFi',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: 14,
                           color: Colors.orange.shade900,
+                          height: 1.5,
                         ),
                       ),
                     ],
@@ -236,34 +373,109 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ),
               const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: _isLoading ? null : _saveUrl,
-                icon: _isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.save),
-                label: const Text('Guardar URL'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.all(16),
+              // Botón de Guardar
+              SizedBox(
+                height: 56,
+                child: ElevatedButton.icon(
+                  onPressed: _isLoading ? null : _saveUrl,
+                  icon: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Icon(Icons.save, size: 22),
+                  label: const Text(
+                    'Guardar URL',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFD32F2F),
+                    foregroundColor: Colors.white,
+                    elevation: 3,
+                    shadowColor: const Color(0xFFD32F2F).withOpacity(0.5),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: _isLoading ? null : _testConnection,
-                icon: const Icon(Icons.wifi_find),
-                label: const Text('Probar Conexión'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.all(16),
+              // Botón de Probar Conexión
+              SizedBox(
+                height: 56,
+                child: OutlinedButton.icon(
+                  onPressed: _isLoading ? null : _testConnection,
+                  icon: const Icon(Icons.wifi_find, size: 22),
+                  label: const Text(
+                    'Probar Conexión',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFD32F2F),
+                    side: const BorderSide(
+                      color: Color(0xFFD32F2F),
+                      width: 2,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
+              // Botón de Restaurar
               TextButton.icon(
                 onPressed: _resetToDefault,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Restaurar por defecto (Emulador)'),
+                icon: const Icon(Icons.refresh, size: 20),
+                label: const Text(
+                  'Restaurar por defecto (Emulador)',
+                  style: TextStyle(fontSize: 14),
+                ),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.grey[700],
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Footer
+              Center(
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.school,
+                      color: Colors.grey[400],
+                      size: 20,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '© 2025 Universidad de Talca',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Sistema de Objetos Perdidos',
+                      style: TextStyle(
+                        color: Colors.grey[500],
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -280,16 +492,30 @@ class _SettingsPageState extends State<SettingsPage> {
           flex: 2,
           child: Text(
             device,
-            style: const TextStyle(fontWeight: FontWeight.w500),
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+              color: Colors.black87,
+            ),
           ),
         ),
+        const SizedBox(width: 8),
         Expanded(
           flex: 3,
-          child: SelectableText(
-            url,
-            style: const TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 12,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.7),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: SelectableText(
+              url,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                color: Colors.grey[800],
+              ),
             ),
           ),
         ),

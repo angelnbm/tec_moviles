@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:namer_app/pages/main_page.dart';
 import 'package:namer_app/pages/registration_form_page.dart';
 import 'package:namer_app/services/api_service.dart';
+import 'package:namer_app/services/biometric_service.dart';
+import 'package:namer_app/pages/profile_page.dart';
 
 class LoginFormPage extends StatefulWidget {
   const LoginFormPage({super.key});
@@ -42,12 +44,19 @@ class _LoginFormPageState extends State<LoginFormPage> {
 
       if (result['success']) {
         final user = result['data']['user'];
+        await BiometricService.setLastUserId(user['id']);
         
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => MainPage(user: user)),
-          (route) => false,
-        );
+        final isBiometricEnabled = await BiometricService.getBiometricPreference(user['id']);
+        
+        if (!isBiometricEnabled) {
+          _showSetupBiometricDialog(user);
+        } else {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => MainPage(user: user)),
+            (route) => false,
+          );
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -65,6 +74,40 @@ class _LoginFormPageState extends State<LoginFormPage> {
         ),
       );
     }
+  }
+
+  void _showSetupBiometricDialog(Map<String, dynamic> user) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Configurar inicio rápido'),
+        content: const Text('¿Deseas configurar tu huella digital para iniciar sesión más rápido?'),
+        actions: [
+          TextButton(
+            child: const Text('Más tarde'),
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => MainPage(user: user)),
+                (route) => false,
+              );
+            },
+          ),
+          ElevatedButton(
+            child: const Text('Configurar ahora'),
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => MainPage(user: user, initialIndex: 3)),
+                (route) => false,
+              );
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   @override
