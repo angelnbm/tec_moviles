@@ -28,6 +28,7 @@ router.get('/', async (req, res) => {
 router.get('/my-reports', auth, async (req, res) => {
   try {
     const reports = await Report.find({ userId: req.user.id })
+      .populate('userId', 'name lastName email profileImage')
       .sort({ createdAt: -1 });
     res.json(reports);
   } catch (err) {
@@ -84,7 +85,7 @@ router.put('/:id', auth, async (req, res) => {
       return res.status(403).json({ message: 'No autorizado' });
     }
 
-    const { title, description, category, location, latitude, longitude, imageUrl, status } = req.body;
+    const { title, description, category, location, latitude, longitude, imageUrl, audioUrl, status } = req.body;
     
     if (title) report.title = title;
     if (description) report.description = description;

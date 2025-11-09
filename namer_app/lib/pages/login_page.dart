@@ -1,13 +1,67 @@
 import 'package:flutter/material.dart';
 import 'package:namer_app/pages/login_form_page.dart';
 import 'package:namer_app/pages/main_page.dart';
+import 'package:namer_app/services/api_service.dart';
 
 class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
 
+  Future<void> _showSettingsDialog(BuildContext context) async {
+    final TextEditingController urlController =
+        TextEditingController(text: ApiService.baseUrl);
+
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Configurar URL del Servidor'),
+          content: TextField(
+            controller: urlController,
+            decoration: const InputDecoration(
+              labelText: 'URL Base de la API',
+              hintText: 'http://192.168.1.100:5000/api',
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancelar'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+            ElevatedButton(
+              child: const Text('Guardar'),
+              onPressed: () async {
+                await ApiService.setBaseUrl(urlController.text);
+                Navigator.of(dialogContext).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('URL actualizada a: ${urlController.text}'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings, color: Colors.grey),
+            onPressed: () => _showSettingsDialog(context),
+            tooltip: 'Configuración',
+          ),
+        ],
+      ),
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
