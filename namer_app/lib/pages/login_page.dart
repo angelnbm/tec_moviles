@@ -2,9 +2,55 @@ import 'package:flutter/material.dart';
 import 'package:namer_app/pages/login_form_page.dart';
 import 'package:namer_app/pages/main_page.dart';
 import 'package:namer_app/services/api_service.dart';
+import 'package:namer_app/services/biometric_service.dart';
 
-class LoginPage extends StatelessWidget {
+class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
+
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  bool _canUseBiometrics = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometrics();
+  }
+
+  Future<void> _checkBiometrics() async {
+    final lastUserId = await BiometricService.getLastUserId();
+    if (lastUserId != null) {
+      final isEnabled = await BiometricService.getBiometricPreference(lastUserId);
+      final canAuth = await BiometricService.canAuthenticate();
+      if (mounted) {
+        setState(() {
+          _canUseBiometrics = isEnabled && canAuth;
+        });
+      }
+    }
+  }
+
+  Future<void> _loginWithBiometrics() async {
+    final didAuthenticate = await BiometricService.authenticate('Inicia sesión con tu huella');
+    if (didAuthenticate) {
+      final token = await ApiService.getToken();
+      final user = await ApiService.getUserData();
+      if (token != null && user != null) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => MainPage(user: user)),
+          (route) => false,
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo iniciar sesión. Por favor, ingresa tus credenciales.')),
+        );
+      }
+    }
+  }
 
   Future<void> _showSettingsDialog(BuildContext context) async {
     final TextEditingController urlController =
@@ -181,6 +227,25 @@ class LoginPage extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (_canUseBiometrics) ...[
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _loginWithBiometrics,
+                        icon: const Icon(Icons.fingerprint),
+                        label: const Text('Iniciar con huella'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFFD32F2F),
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          side: const BorderSide(color: Color(0xFFD32F2F), width: 1.8),
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   // Botón de invitado mejorado
                   SizedBox(
