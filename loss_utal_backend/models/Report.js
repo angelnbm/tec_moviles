@@ -27,6 +27,9 @@ const ReportSchema = new mongoose.Schema({
   imageUrl: { 
     type: String 
   },
+  audioUrl: { 
+    type: String 
+  },
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 

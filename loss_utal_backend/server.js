@@ -10,7 +10,8 @@ const app = express();
 
 // Middleware
 app.use(cors()); // Permitir peticiones de otros orígenes
-app.use(express.json()); // Para parsear JSON
+app.use(express.json({ limit: '50mb' })); // Cambia de 100kb (default) a 50mb
+app.use(express.urlencoded({ limit: '50mb', extended: true })); // Para formularios
 
 // Conectar a MongoDB
 mongoose.connect(process.env.MONGO_URI)
@@ -20,7 +21,8 @@ mongoose.connect(process.env.MONGO_URI)
 // Rutas
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/reports', require('./routes/reports'));
+app.use('/api/conversations', require('./routes/conversations'));
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => console.log(`Servidor corriendo en el puerto ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Servidor corriendo en el puerto ${PORT}, accesible en la red local`));

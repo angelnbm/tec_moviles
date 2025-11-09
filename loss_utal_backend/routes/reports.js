@@ -7,9 +7,16 @@ const router = express.Router();
 //Obtener todos los reportes (público)
 router.get('/', async (req, res) => {
   try {
-    const reports = await Report.find()
-      .populate('userId', 'name lastName email')
+    // Solo obtener reportes activos (no resueltos)
+    const reports = await Report.find({ status: 'active' })
+      .populate('userId', 'name lastName email profileImage')
       .sort({ createdAt: -1 });
+    
+    console.log(`📋 Obteniendo ${reports.length} reportes activos`);
+    reports.forEach((report, index) => {
+      console.log(`  ${index + 1}. ${report.title} - Status: ${report.status}, hasImage: ${!!report.imageUrl}, imageLength: ${report.imageUrl ? report.imageUrl.length : 0}`);
+    });
+    
     res.json(reports);
   } catch (err) {
     console.error(err);
@@ -21,6 +28,7 @@ router.get('/', async (req, res) => {
 router.get('/my-reports', auth, async (req, res) => {
   try {
     const reports = await Report.find({ userId: req.user.id })
+      .populate('userId', 'name lastName email profileImage')
       .sort({ createdAt: -1 });
     res.json(reports);
   } catch (err) {
@@ -31,7 +39,16 @@ router.get('/my-reports', auth, async (req, res) => {
 
 //Crear un nuevo reporte
 router.post('/', auth, async (req, res) => {
-  const { title, description, category, location, latitude, longitude, imageUrl } = req.body;
+  const { title, description, category, location, latitude, longitude, imageUrl, audioUrl } = req.body;
+  
+  console.log('📝 Creando nuevo reporte:', {
+    title,
+    category,
+    location,
+    hasImage: !!imageUrl,
+    imageUrlLength: imageUrl ? imageUrl.length : 0,
+    imagePreview: imageUrl ? imageUrl.substring(0, 50) + '...' : 'N/A'
+  });
   
   try {
     const newReport = new Report({
@@ -42,13 +59,15 @@ router.post('/', auth, async (req, res) => {
       latitude,
       longitude,
       imageUrl,
+      audioUrl,
       userId: req.user.id
     });
 
     const report = await newReport.save();
+    console.log('✅ Reporte guardado con ID:', report._id, '- Imagen guardada:', !!report.imageUrl);
     res.status(201).json(report);
   } catch (err) {
-    console.error(err);
+    console.error('❌ Error al guardar reporte:', err);
     res.status(500).json({ message: 'Error en el servidor' });
   }
 });
@@ -66,7 +85,7 @@ router.put('/:id', auth, async (req, res) => {
       return res.status(403).json({ message: 'No autorizado' });
     }
 
-    const { title, description, category, location, latitude, longitude, imageUrl, status } = req.body;
+    const { title, description, category, location, latitude, longitude, imageUrl, audioUrl, status } = req.body;
     
     if (title) report.title = title;
     if (description) report.description = description;
@@ -75,6 +94,7 @@ router.put('/:id', auth, async (req, res) => {
     if (latitude !== undefined) report.latitude = latitude;
     if (longitude !== undefined) report.longitude = longitude;
     if (imageUrl) report.imageUrl = imageUrl;
+    if (audioUrl) report.audioUrl = audioUrl;
     if (status) report.status = status;
 
     await report.save();

@@ -6,20 +6,22 @@ import 'profile_page.dart';
 
 class MainPage extends StatefulWidget {
   final Map<String, dynamic>? user;
+  final int initialIndex;
 
-  const MainPage({super.key, this.user});
+  const MainPage({super.key, this.user, this.initialIndex = 0});
 
   @override
   State<MainPage> createState() => _MainPageState();
 }
 
 class _MainPageState extends State<MainPage> {
-  int _selectedIndex = 0;
+  late int _selectedIndex;
   late final List<Widget> _widgetOptions;
 
   @override
   void initState() {
     super.initState();
+    _selectedIndex = widget.initialIndex;
     _widgetOptions = <Widget>[
       GuestLandingPage(),
       MyReportsPage(),

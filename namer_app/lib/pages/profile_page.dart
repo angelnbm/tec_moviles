@@ -1,18 +1,87 @@
 import 'package:flutter/material.dart';
 import 'package:namer_app/pages/login_page.dart';
+import 'package:namer_app/pages/edit_profile_page.dart';
+import 'package:namer_app/services/api_service.dart';
+import 'package:namer_app/widgets/profile_avatar.dart';
+import 'package:namer_app/services/biometric_service.dart';
 
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends StatefulWidget {
   final Map<String, dynamic>? user;
 
   const ProfilePage({super.key, this.user});
 
   @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  late Map<String, dynamic>? _currentUser;
+  bool _isBiometricEnabled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentUser = widget.user;
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final userData = await ApiService.getUserData();
+    if (userData != null && mounted) {
+      setState(() {
+        _currentUser = userData;
+      });
+      _loadBiometricPreference();
+    }
+  }
+
+  Future<void> _loadBiometricPreference() async {
+    if (_currentUser != null) {
+      final isEnabled = await BiometricService.getBiometricPreference(_currentUser!['id']);
+      if (mounted) {
+        setState(() {
+          _isBiometricEnabled = isEnabled;
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleBiometricAuth(bool value) async {
+    if (_currentUser == null) return;
+
+    if (value) {
+      final canAuth = await BiometricService.canAuthenticate();
+      if (!canAuth) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('La autenticación biométrica no está disponible en este dispositivo.')),
+        );
+        return;
+      }
+      final didAuthenticate = await BiometricService.authenticate('Confirma tu huella para activar el inicio de sesión rápido.');
+      if (didAuthenticate) {
+        await BiometricService.setBiometricPreference(_currentUser!['id'], true);
+        setState(() { _isBiometricEnabled = true; });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Inicio de sesión con huella activado.'), backgroundColor: Colors.green),
+        );
+      }
+    } else {
+      await BiometricService.setBiometricPreference(_currentUser!['id'], false);
+      setState(() { _isBiometricEnabled = false; });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Inicio de sesión con huella desactivado.')),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     // Usa los datos del usuario si existen, si no, muestra valores por defecto.
-    final String userName = user?['name'] ?? 'Usuario';
-    final String userLastName = user?['lastName'] ?? 'Invitado';
-    final String userEmail = user?['email'] ?? 'invitado@utalca.cl';
-    final String userRut = user?['rut'] ?? 'Sin RUT';
+    final String userName = _currentUser?['name'] ?? 'Usuario';
+    final String userLastName = _currentUser?['lastName'] ?? 'Invitado';
+    final String userEmail = _currentUser?['email'] ?? 'invitado@utalca.cl';
+    final String userRut = _currentUser?['rut'] ?? 'Sin RUT';
+    final String? profileImage = _currentUser?['profileImage'];
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
@@ -50,24 +119,11 @@ class ProfilePage extends StatelessWidget {
                 children: [
                   Stack(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: const Color(0xFFD32F2F),
-                            width: 3,
-                          ),
-                        ),
-                        child: CircleAvatar(
-                          radius: 60,
-                          backgroundColor: Colors.grey[200],
-                          child: const Icon(
-                            Icons.person,
-                            size: 60,
-                            color: Color(0xFFD32F2F),
-                          ),
-                        ),
+                      ProfileAvatar(
+                        profileImageBase64: profileImage,
+                        radius: 60,
+                        borderColor: const Color(0xFFD32F2F),
+                        borderWidth: 4,
                       ),
                       Positioned(
                         right: 0,
@@ -204,14 +260,43 @@ class ProfilePage extends StatelessWidget {
                     icon: Icons.edit_outlined,
                     title: 'Editar información',
                     subtitle: 'Actualiza tus datos personales',
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Función próximamente disponible'),
-                          backgroundColor: Color(0xFFD32F2F),
+                    onTap: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => EditProfilePage(user: _currentUser!),
                         ),
                       );
+                      
+                      // Si se actualizó el perfil, recargar los datos
+                      if (result != null) {
+                        setState(() {
+                          _currentUser = result;
+                        });
+                      }
                     },
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD32F2F).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.fingerprint, color: Color(0xFFD32F2F)),
+                    ),
+                    title: const Text('Inicio de sesión con huella', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                    subtitle: Text(
+                      _isBiometricEnabled ? 'Activado' : 'Desactivado',
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                    ),
+                    trailing: Switch(
+                      value: _isBiometricEnabled,
+                      onChanged: _toggleBiometricAuth,
+                      activeColor: const Color(0xFFD32F2F),
+                    ),
                   ),
                   const Divider(height: 1),
                   _buildOptionTile(
@@ -347,7 +432,7 @@ class ProfilePage extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '© 2024 Universidad de Talca',
+                  '© 2025 Universidad de Talca',
                   style: TextStyle(
                     color: Colors.grey[600],
                     fontSize: 12,

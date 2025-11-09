@@ -1,18 +1,48 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:io' show Platform;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
+  static String? _baseUrl;
+
   static String get baseUrl {
-    if (kIsWeb) {
-      return 'http://localhost:5000/api'; // Web
-    } else if (Platform.isAndroid) {
-      return 'http://10.0.2.2:5000/api'; // Android Emulator
-    } else {
-      return 'http://localhost:5000/api'; // iOS/Desktop
+    if (_baseUrl != null && _baseUrl!.isNotEmpty) {
+      return _baseUrl!;
     }
+    const fromEnv = String.fromEnvironment('BASE_URL');
+    if (fromEnv.isNotEmpty) {
+      return fromEnv;
+    }
+    
+    // Detectar plataforma y retornar URL apropiada
+    if (kIsWeb) {
+      // Para web, usa localhost
+      return 'http://localhost:5000/api';
+    } else if (Platform.isAndroid) {
+      // Para Android emulador: 10.0.2.2
+      // Para Android dispositivo físico: necesitas la IP de tu PC
+      return 'http://10.0.2.2:5000/api';
+    } else if (Platform.isIOS) {
+      // Para iOS emulador/simulador
+      return 'http://localhost:5000/api';
+    } else {
+      // Desktop (Windows, Linux, macOS)
+      return 'http://localhost:5000/api';
+    }
+  }
+
+  static Future<void> initBaseUrl() async {
+    final prefs = await SharedPreferences.getInstance();
+    _baseUrl = prefs.getString('base_url');
+  }
+
+  static Future<void> setBaseUrl(String url) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('base_url', url);
+    _baseUrl = url;
   }
 
   // Token management
@@ -78,7 +108,10 @@ class ApiService {
         return {'success': true, 'data': data};
       } else {
         final error = jsonDecode(response.body);
-        return {'success': false, 'message': error['msg'] ?? 'Error al registrar'};
+        return {
+          'success': false,
+          'message': error['msg'] ?? 'Error al registrar'
+        };
       }
     } catch (e) {
       return {'success': false, 'message': 'Error de conexión: $e'};
@@ -106,7 +139,10 @@ class ApiService {
         return {'success': true, 'data': data};
       } else {
         final error = jsonDecode(response.body);
-        return {'success': false, 'message': error['msg'] ?? 'Error al iniciar sesión'};
+        return {
+          'success': false,
+          'message': error['msg'] ?? 'Error al iniciar sesión'
+        };
       }
     } catch (e) {
       return {'success': false, 'message': 'Error de conexión: $e'};
@@ -118,6 +154,21 @@ class ApiService {
     await clearUserData();
   }
 
+  static Future<String?> _fileToBase64(String filePath, String mimeType) async {
+    try {
+      final file = File(filePath);
+      if (await file.exists()) {
+        final bytes = await file.readAsBytes();
+        final base64String = base64Encode(bytes);
+        return 'data:$mimeType;base64,$base64String';
+      }
+      return null;
+    } catch (e) {
+      print('Error convirtiendo archivo a Base64: $e');
+      return null;
+    }
+  }
+
   // Reports endpoints
   static Future<Map<String, dynamic>> createReport({
     required String title,
@@ -127,11 +178,27 @@ class ApiService {
     required double latitude,
     required double longitude,
     String? imageUrl,
+    String? audioUrl,
   }) async {
     try {
       final token = await getToken();
       if (token == null) {
         return {'success': false, 'message': 'No autenticado'};
+      }
+      // Si hay una ruta de archivo de audio, súbelo primero
+      String? processedAudioUrl;
+      if (audioUrl != null && audioUrl.startsWith('/')) {
+        processedAudioUrl = await _fileToBase64(audioUrl, 'audio/aac');
+      } else {
+        processedAudioUrl = audioUrl;
+      }
+
+      // Convertir imagen a Base64 si es una ruta de archivo local
+      String? processedImageUrl;
+      if (imageUrl != null && imageUrl.startsWith('/')) {
+        processedImageUrl = await _fileToBase64(imageUrl, 'image/jpeg');
+      } else {
+        processedImageUrl = imageUrl;
       }
 
       final response = await http.post(
@@ -147,7 +214,8 @@ class ApiService {
           'location': location,
           'latitude': latitude,
           'longitude': longitude,
-          'imageUrl': imageUrl,
+          'imageUrl': processedImageUrl,
+          'audioUrl': processedAudioUrl,
         }),
       );
 
@@ -156,7 +224,10 @@ class ApiService {
         return {'success': true, 'data': data};
       } else {
         final error = jsonDecode(response.body);
-        return {'success': false, 'message': error['msg'] ?? 'Error al crear reporte'};
+        return {
+          'success': false,
+          'message': error['msg'] ?? 'Error al crear reporte'
+        };
       }
     } catch (e) {
       return {'success': false, 'message': 'Error de conexión: $e'};
@@ -211,6 +282,11 @@ class ApiService {
     required String reportId,
     String? title,
     String? description,
+    String? category,
+    String? location,
+    double? latitude,
+    double? longitude,
+    String? imageUrl,
     String? status,
   }) async {
     try {
@@ -222,6 +298,11 @@ class ApiService {
       final body = <String, dynamic>{};
       if (title != null) body['title'] = title;
       if (description != null) body['description'] = description;
+      if (category != null) body['category'] = category;
+      if (location != null) body['location'] = location;
+      if (latitude != null) body['latitude'] = latitude;
+      if (longitude != null) body['longitude'] = longitude;
+      if (imageUrl != null) body['imageUrl'] = imageUrl;
       if (status != null) body['status'] = status;
 
       final response = await http.put(
@@ -238,7 +319,10 @@ class ApiService {
         return {'success': true, 'data': data};
       } else {
         final error = jsonDecode(response.body);
-        return {'success': false, 'message': error['msg'] ?? 'Error al actualizar reporte'};
+        return {
+          'success': false,
+          'message': error['msg'] ?? 'Error al actualizar reporte'
+        };
       }
     } catch (e) {
       return {'success': false, 'message': 'Error de conexión: $e'};
@@ -265,7 +349,318 @@ class ApiService {
         return {'success': true, 'data': data};
       } else {
         final error = jsonDecode(response.body);
-        return {'success': false, 'message': error['msg'] ?? 'Error al eliminar reporte'};
+        return {
+          'success': false,
+          'message': error['msg'] ?? 'Error al eliminar reporte'
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+
+  // Profile endpoints
+  static Future<Map<String, dynamic>> getProfile() async {
+    try {
+      final token = await getToken();
+      if (token == null) {
+        return {'success': false, 'message': 'No autenticado'};
+      }
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/auth/profile'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        // Update local user data
+        await saveUserData(data);
+        return {'success': true, 'data': data};
+      } else {
+        final error = jsonDecode(response.body);
+        return {'success': false, 'message': error['msg'] ?? 'Error al obtener perfil'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateProfile({
+    String? name,
+    String? lastName,
+    String? profileImage,
+  }) async {
+    try {
+      final token = await getToken();
+      if (token == null) {
+        return {'success': false, 'message': 'No autenticado'};
+      }
+
+      final body = <String, dynamic>{};
+      if (name != null) body['name'] = name;
+      if (lastName != null) body['lastName'] = lastName;
+      if (profileImage != null) body['profileImage'] = profileImage;
+
+      final response = await http.put(
+        Uri.parse('$baseUrl/auth/profile'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token,
+        },
+        body: jsonEncode(body),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        // Update local user data
+        await saveUserData(data);
+        return {'success': true, 'data': data};
+      } else {
+        final error = jsonDecode(response.body);
+        return {'success': false, 'message': error['msg'] ?? 'Error al actualizar perfil'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+
+  // Conversations endpoints
+  
+  // Verificar si existe una conversación para un reporte
+  static Future<Map<String, dynamic>> checkConversationForReport(String reportId) async {
+    try {
+      final token = await getToken();
+      if (token == null) {
+        return {'success': false, 'message': 'No autenticado'};
+      }
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/conversations/check/$reportId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {'success': true, 'data': data};
+      } else {
+        return {'success': false, 'message': 'Error al verificar conversación'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+  
+  // Crear o obtener una conversación
+  static Future<Map<String, dynamic>> createConversation({
+    required String reportId,
+    String? initialMessage,
+  }) async {
+    try {
+      final token = await getToken();
+      if (token == null) {
+        return {'success': false, 'message': 'No autenticado'};
+      }
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/conversations'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token,
+        },
+        body: jsonEncode({
+          'reportId': reportId,
+          'initialMessage': initialMessage,
+        }),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        return {'success': true, 'data': data};
+      } else {
+        final error = jsonDecode(response.body);
+        return {
+          'success': false,
+          'message': error['message'] ?? 'Error al crear conversación'
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+
+  // Obtener todas las conversaciones del usuario
+  static Future<Map<String, dynamic>> getMyConversations() async {
+    try {
+      final token = await getToken();
+      if (token == null) {
+        return {'success': false, 'message': 'No autenticado'};
+      }
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/conversations/my-conversations'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {'success': true, 'data': data};
+      } else {
+        return {'success': false, 'message': 'Error al cargar conversaciones'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+
+  // Obtener conversaciones de un reporte específico
+  static Future<Map<String, dynamic>> getReportConversations(String reportId) async {
+    try {
+      final token = await getToken();
+      if (token == null) {
+        return {'success': false, 'message': 'No autenticado'};
+      }
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/conversations/report/$reportId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {'success': true, 'data': data};
+      } else {
+        return {'success': false, 'message': 'Error al cargar conversaciones del reporte'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+
+  // Obtener una conversación específica
+  static Future<Map<String, dynamic>> getConversation(String conversationId) async {
+    try {
+      final token = await getToken();
+      if (token == null) {
+        return {'success': false, 'message': 'No autenticado'};
+      }
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/conversations/$conversationId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {'success': true, 'data': data};
+      } else {
+        return {'success': false, 'message': 'Error al cargar conversación'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+
+  // Enviar un mensaje en una conversación
+  static Future<Map<String, dynamic>> sendMessage({
+    required String conversationId,
+    required String message,
+  }) async {
+    try {
+      final token = await getToken();
+      if (token == null) {
+        return {'success': false, 'message': 'No autenticado'};
+      }
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/conversations/$conversationId/messages'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token,
+        },
+        body: jsonEncode({
+          'message': message,
+        }),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        return {'success': true, 'data': data};
+      } else {
+        final error = jsonDecode(response.body);
+        return {
+          'success': false,
+          'message': error['message'] ?? 'Error al enviar mensaje'
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+
+  // Marcar mensajes como leídos
+  static Future<Map<String, dynamic>> markMessagesAsRead(String conversationId) async {
+    try {
+      final token = await getToken();
+      if (token == null) {
+        return {'success': false, 'message': 'No autenticado'};
+      }
+
+      final response = await http.put(
+        Uri.parse('$baseUrl/conversations/$conversationId/mark-read'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {'success': true, 'data': data};
+      } else {
+        return {'success': false, 'message': 'Error al marcar como leído'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+
+  // Obtener conteo de mensajes no leídos
+  static Future<Map<String, dynamic>> getUnreadCount() async {
+    try {
+      final token = await getToken();
+      if (token == null) {
+        return {'success': false, 'message': 'No autenticado'};
+      }
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/conversations/unread/count'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {'success': true, 'data': data};
+      } else {
+        return {'success': false, 'message': 'Error al obtener conteo'};
       }
     } catch (e) {
       return {'success': false, 'message': 'Error de conexión: $e'};

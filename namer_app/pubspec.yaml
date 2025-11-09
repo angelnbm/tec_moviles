@@ -19,6 +19,13 @@ dependencies:
   google_maps_flutter: ^2.5.3
   http: ^1.2.1
   shared_preferences: ^2.2.2
+  flutter_image_compress: ^2.1.0
+  mime: ^1.0.4
+  flutter_sound: ^9.2.13  # Para grabar audio
+  permission_handler: ^11.0.1  # Para permisos de micrófono
+  path_provider: ^2.1.1  # Para obtener directorios del dispositivo
+  audioplayers: ^5.2.1  # Para reproducir el audio grabado
+  local_auth: ^2.2.0 #huella
 
 dev_dependencies:
   flutter_test:
