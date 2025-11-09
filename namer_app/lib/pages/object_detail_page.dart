@@ -6,6 +6,7 @@ import 'package:namer_app/services/api_service.dart';
 import 'package:namer_app/pages/conversation_page.dart';
 import 'dart:convert';
 import 'dart:async';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class ObjectDetailPage extends StatefulWidget {
   final dynamic report;
@@ -47,7 +48,8 @@ class _ObjectDetailPageState extends State<ObjectDetailPage> {
 
     if (mounted) {
       setState(() {
-        _isOwnReport = currentUserId.isNotEmpty && currentUserId == reportUserId;
+        _isOwnReport =
+            currentUserId.isNotEmpty && currentUserId == reportUserId;
         if (_isOwnReport && userData != null) {
           _currentUserName = '${userData['name']} ${userData['lastName']}';
           _currentUserProfileImage = userData['profileImage'];
@@ -61,11 +63,13 @@ class _ObjectDetailPageState extends State<ObjectDetailPage> {
       _isCheckingConversation = true;
     });
 
-    final result = await ApiService.checkConversationForReport(widget.report['_id']);
-    
+    final result =
+        await ApiService.checkConversationForReport(widget.report['_id']);
+
     if (mounted) {
       setState(() {
-        _conversationExists = result['success'] && result['data']['exists'] == true;
+        _conversationExists =
+            result['success'] && result['data']['exists'] == true;
         _isCheckingConversation = false;
       });
     }
@@ -175,6 +179,76 @@ class _ObjectDetailPageState extends State<ObjectDetailPage> {
     return '$minutes:$seconds';
   }
 
+  void _showMapModal(double latitude, double longitude, String title) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true, // Permite que ocupe toda la pantalla
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.7, // 70% de la pantalla inicialmente
+          minChildSize: 0.5, // Mínimo 50%
+          maxChildSize: 0.95, // Máximo 95%
+          expand: false,
+          builder: (context, scrollController) {
+            return Column(
+              children: [
+                // Header del modal
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFD32F2F),
+                    borderRadius:
+                        BorderRadius.vertical(top: Radius.circular(20)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.map,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Ubicación: $title',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        onPressed: () => Navigator.pop(context),
+                        tooltip: 'Cerrar',
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Mapa
+                Expanded(
+                  child: MapModalContent(
+                    latitude: latitude,
+                    longitude: longitude,
+                    title: title,
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _showContactDialog() async {
     final userId = widget.report['userId'];
     final userName = userId != null && userId is Map
@@ -184,8 +258,9 @@ class _ObjectDetailPageState extends State<ObjectDetailPage> {
         userId != null && userId is Map ? userId['profileImage'] : null;
 
     // Primero verificar si ya existe una conversación
-    final checkResult = await ApiService.checkConversationForReport(widget.report['_id']);
-    
+    final checkResult =
+        await ApiService.checkConversationForReport(widget.report['_id']);
+
     if (checkResult['success'] && checkResult['data']['exists'] == true) {
       // Ya existe una conversación, ir directamente al chat
       final conversation = checkResult['data']['conversation'];
@@ -193,7 +268,8 @@ class _ObjectDetailPageState extends State<ObjectDetailPage> {
       final currentUserId = userData?['_id']?.toString() ?? '';
 
       // Determinar quién es el otro usuario
-      final reportAuthorId = conversation['reportAuthorId']['_id']?.toString() ?? '';
+      final reportAuthorId =
+          conversation['reportAuthorId']['_id']?.toString() ?? '';
       final isAuthor = currentUserId == reportAuthorId;
       final otherUser = isAuthor
           ? conversation['interestedUserId']
@@ -313,8 +389,7 @@ class _ObjectDetailPageState extends State<ObjectDetailPage> {
                           controller: messageController,
                           maxLines: 4,
                           decoration: const InputDecoration(
-                            hintText:
-                                'Escribe tu mensaje sobre el objeto...',
+                            hintText: 'Escribe tu mensaje sobre el objeto...',
                             border: InputBorder.none,
                             contentPadding: EdgeInsets.all(16),
                             hintStyle: TextStyle(fontSize: 14),
@@ -331,8 +406,7 @@ class _ObjectDetailPageState extends State<ObjectDetailPage> {
                           onPressed: isSending
                               ? null
                               : () async {
-                                  final message =
-                                      messageController.text.trim();
+                                  final message = messageController.text.trim();
                                   if (message.isEmpty) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
@@ -369,11 +443,16 @@ class _ObjectDetailPageState extends State<ObjectDetailPage> {
                                     final conversation = result['data'];
                                     final userData =
                                         await ApiService.getUserData();
-                                    final currentUserId = userData?['_id']?.toString() ?? '';
+                                    final currentUserId =
+                                        userData?['_id']?.toString() ?? '';
 
                                     // Determinar quién es el otro usuario
-                                    final reportAuthorId = conversation['reportAuthorId']['_id']?.toString() ?? '';
-                                    final isAuthor = currentUserId == reportAuthorId;
+                                    final reportAuthorId =
+                                        conversation['reportAuthorId']['_id']
+                                                ?.toString() ??
+                                            '';
+                                    final isAuthor =
+                                        currentUserId == reportAuthorId;
                                     final otherUser = isAuthor
                                         ? conversation['interestedUserId']
                                         : conversation['reportAuthorId'];
@@ -387,8 +466,8 @@ class _ObjectDetailPageState extends State<ObjectDetailPage> {
                                               '${otherUser['name']} ${otherUser['lastName']}',
                                           otherUserProfileImage:
                                               otherUser['profileImage'],
-                                          reportTitle:
-                                              conversation['reportId']['title'],
+                                          reportTitle: conversation['reportId']
+                                              ['title'],
                                         ),
                                       ),
                                     );
@@ -463,7 +542,7 @@ class _ObjectDetailPageState extends State<ObjectDetailPage> {
     final userId = widget.report['userId'];
     String userName;
     String? userProfileImage;
-    
+
     // Si es el propio reporte del usuario Y ya tenemos los datos cargados
     if (_isOwnReport && _currentUserName != null) {
       userName = _currentUserName!;
@@ -848,7 +927,7 @@ class _ObjectDetailPageState extends State<ObjectDetailPage> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            widget.report['location'] ?? 'Sin ubicación',
+                            '${widget.report['location'] ?? 'Sin ubicación'}',
                             style: const TextStyle(
                               fontSize: 15,
                               color: Colors.black87,
@@ -862,18 +941,20 @@ class _ObjectDetailPageState extends State<ObjectDetailPage> {
                       icon: const Icon(Icons.map_outlined,
                           color: Color(0xFFD32F2F)),
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Row(
-                              children: [
-                                Icon(Icons.map, color: Colors.white),
-                                SizedBox(width: 12),
-                                Text('Vista de mapa próximamente'),
-                              ],
+                        final latitude = widget.report['latitude'];
+                        final longitude = widget.report['longitude'];
+
+                        if (latitude != null && longitude != null) {
+                          _showMapModal(latitude.toDouble(),
+                              longitude.toDouble(), widget.report['title']);
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Coordenadas no disponibles'),
+                              backgroundColor: Colors.orange,
                             ),
-                            backgroundColor: Color(0xFFD32F2F),
-                          ),
-                        );
+                          );
+                        }
                       },
                       tooltip: 'Ver en mapa',
                     ),
@@ -1093,6 +1174,74 @@ class _ObjectDetailPageState extends State<ObjectDetailPage> {
           const SizedBox(height: 30),
         ],
       ),
+    );
+  }
+}
+
+class MapModalContent extends StatefulWidget {
+  final double latitude;
+  final double longitude;
+  final String title;
+
+  const MapModalContent({
+    super.key,
+    required this.latitude,
+    required this.longitude,
+    required this.title,
+  });
+
+  @override
+  State<MapModalContent> createState() => _MapModalContentState();
+}
+
+class _MapModalContentState extends State<MapModalContent> {
+  late GoogleMapController _mapController;
+  late LatLng _reportLocation;
+  late CameraPosition _initialCameraPosition;
+
+  @override
+  void initState() {
+    super.initState();
+    _reportLocation = LatLng(widget.latitude, widget.longitude);
+    _initialCameraPosition = CameraPosition(
+      target: _reportLocation,
+      zoom: 16.0,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GoogleMap(
+      initialCameraPosition: _initialCameraPosition,
+      markers: {
+        Marker(
+          markerId: const MarkerId('report-location'),
+          position: _reportLocation,
+          infoWindow: InfoWindow(
+            title: widget.title,
+            snippet: 'Ubicación del reporte',
+          ),
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueRed,
+          ),
+        ),
+      },
+      onMapCreated: (GoogleMapController controller) {
+        _mapController = controller;
+        // Animar la cámara al marcador después de que el mapa se cargue
+        Future.delayed(const Duration(milliseconds: 500), () {
+          _mapController.animateCamera(
+            CameraUpdate.newLatLngZoom(_reportLocation, 18.0),
+          );
+        });
+      },
+      zoomControlsEnabled: true,
+      zoomGesturesEnabled: true,
+      scrollGesturesEnabled: true,
+      tiltGesturesEnabled: true,
+      rotateGesturesEnabled: true,
+      myLocationEnabled: false,
+      myLocationButtonEnabled: false,
     );
   }
 }

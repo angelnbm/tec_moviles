@@ -43,6 +43,8 @@ class _NewReportPageState extends State<NewReportPage> {
   StreamSubscription<Duration>? _positionSubscription;
   StreamSubscription<ap.PlayerState>? _playerStateSubscription;
   StreamSubscription<Duration>? _durationSubscription;
+  GoogleMapController? _locationMapController;
+  LatLng? _selectedLocationLatLng;
 
   @override
   void initState() {
@@ -51,7 +53,6 @@ class _NewReportPageState extends State<NewReportPage> {
     _setupAudioListeners();
   }
 
-  // NUEVO: Método separado para configurar los listeners
   void _setupAudioListeners() {
     // Escuchar cambios en el estado del reproductor
     _playerStateSubscription =
@@ -269,6 +270,30 @@ class _NewReportPageState extends State<NewReportPage> {
     _showSnackBar('Audio eliminado', Colors.orange);
   }
 
+  void _updateSelectedLocation(String locationText) {
+    if (locationText.isNotEmpty) {
+      final coords = locationText.split(',');
+      if (coords.length == 2) {
+        final latitude = double.tryParse(coords[0].trim());
+        final longitude = double.tryParse(coords[1].trim());
+        if (latitude != null && longitude != null) {
+          setState(() {
+            _selectedLocationLatLng = LatLng(latitude, longitude);
+          });
+          if (_locationMapController != null) {
+            _locationMapController!.animateCamera(
+              CameraUpdate.newLatLngZoom(_selectedLocationLatLng!, 16),
+            );
+          }
+        }
+      }
+    } else {
+      setState(() {
+        _selectedLocationLatLng = null;
+      });
+    }
+  }
+
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
     final minutes = twoDigits(duration.inMinutes.remainder(60));
@@ -302,10 +327,12 @@ class _NewReportPageState extends State<NewReportPage> {
 
     try {
       locationData = await location.getLocation();
+      final locationText =
+          '${locationData.latitude}, ${locationData.longitude}';
       setState(() {
-        _locationController.text =
-            '${locationData.latitude}, ${locationData.longitude}';
+        _locationController.text = locationText;
       });
+      _updateSelectedLocation(locationText); // NUEVO
       _showSnackBar('Ubicación obtenida correctamente', Colors.green);
     } catch (e) {
       _showSnackBar('Error al obtener ubicación', Colors.red);
@@ -319,10 +346,12 @@ class _NewReportPageState extends State<NewReportPage> {
     );
 
     if (selectedLocation != null) {
+      final locationText =
+          '${selectedLocation.latitude}, ${selectedLocation.longitude}';
       setState(() {
-        _locationController.text =
-            '${selectedLocation.latitude}, ${selectedLocation.longitude}';
+        _locationController.text = locationText;
       });
+      _updateSelectedLocation(locationText);
     }
   }
 
@@ -484,11 +513,12 @@ class _NewReportPageState extends State<NewReportPage> {
       if (_audioPath != null) {
         audioBase64 = await _convertAudioToBase64();
       }
+
       final result = await ApiService.createReport(
         title: _titleController.text,
         description: _descriptionController.text,
         category: _selectedCategory == ReportCategory.found ? 'found' : 'lost',
-        location: 'Universidad de Talca', // You can make this more specific
+        location: 'Universidad de Talca',
         latitude: latitude,
         longitude: longitude,
         imageUrl: imageBase64,
@@ -797,6 +827,46 @@ class _NewReportPageState extends State<NewReportPage> {
                     onTap: _selectLocationOnMap,
                   ),
                   const SizedBox(height: 12),
+
+                  // NUEVO: Mostrar mapa cuando hay ubicación seleccionada
+                  if (_selectedLocationLatLng != null) ...[
+                    Container(
+                      height: 150,
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: GoogleMap(
+                        initialCameraPosition: CameraPosition(
+                          target: _selectedLocationLatLng!,
+                          zoom: 16,
+                        ),
+                        markers: {
+                          Marker(
+                            markerId: const MarkerId('selected-location'),
+                            position: _selectedLocationLatLng!,
+                            icon: BitmapDescriptor.defaultMarkerWithHue(
+                              BitmapDescriptor.hueRed,
+                            ),
+                          ),
+                        },
+                        onMapCreated: (controller) {
+                          _locationMapController = controller;
+                        },
+                        zoomControlsEnabled: false,
+                        mapToolbarEnabled: false,
+                        myLocationButtonEnabled: false,
+                        scrollGesturesEnabled: false,
+                        zoomGesturesEnabled: false,
+                        rotateGesturesEnabled: false,
+                        tiltGesturesEnabled: false,
+                      ),
+                    ),
+                  ],
+
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
