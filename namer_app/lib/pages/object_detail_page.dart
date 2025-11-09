@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:namer_app/widgets/profile_avatar.dart';
 import 'package:namer_app/widgets/report_image.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:namer_app/services/api_service.dart';
+import 'package:namer_app/pages/conversation_page.dart';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'dart:async';
 
 class ObjectDetailPage extends StatefulWidget {
@@ -23,11 +24,51 @@ class _ObjectDetailPageState extends State<ObjectDetailPage> {
   StreamSubscription<Duration>? _positionSubscription;
   StreamSubscription<PlayerState>? _playerStateSubscription;
   StreamSubscription<Duration>? _durationSubscription;
+  bool _conversationExists = false;
+  bool _isCheckingConversation = true;
+  bool _isOwnReport = false;
+  String? _currentUserName;
+  String? _currentUserProfileImage;
 
   @override
   void initState() {
     super.initState();
     _setupAudioListeners();
+    _checkExistingConversation();
+    _checkIfOwnReport();
+  }
+
+  Future<void> _checkIfOwnReport() async {
+    final userData = await ApiService.getUserData();
+    final currentUserId = userData?['_id']?.toString() ?? '';
+    final reportUserId = widget.report['userId'] is Map
+        ? widget.report['userId']['_id']?.toString() ?? ''
+        : widget.report['userId']?.toString() ?? '';
+
+    if (mounted) {
+      setState(() {
+        _isOwnReport = currentUserId.isNotEmpty && currentUserId == reportUserId;
+        if (_isOwnReport && userData != null) {
+          _currentUserName = '${userData['name']} ${userData['lastName']}';
+          _currentUserProfileImage = userData['profileImage'];
+        }
+      });
+    }
+  }
+
+  Future<void> _checkExistingConversation() async {
+    setState(() {
+      _isCheckingConversation = true;
+    });
+
+    final result = await ApiService.checkConversationForReport(widget.report['_id']);
+    
+    if (mounted) {
+      setState(() {
+        _conversationExists = result['success'] && result['data']['exists'] == true;
+        _isCheckingConversation = false;
+      });
+    }
   }
 
   void _setupAudioListeners() {
@@ -134,6 +175,281 @@ class _ObjectDetailPageState extends State<ObjectDetailPage> {
     return '$minutes:$seconds';
   }
 
+  Future<void> _showContactDialog() async {
+    final userId = widget.report['userId'];
+    final userName = userId != null && userId is Map
+        ? '${userId['name']} ${userId['lastName']}'
+        : 'Usuario UTALCA';
+    final userProfileImage =
+        userId != null && userId is Map ? userId['profileImage'] : null;
+
+    // Primero verificar si ya existe una conversación
+    final checkResult = await ApiService.checkConversationForReport(widget.report['_id']);
+    
+    if (checkResult['success'] && checkResult['data']['exists'] == true) {
+      // Ya existe una conversación, ir directamente al chat
+      final conversation = checkResult['data']['conversation'];
+      final userData = await ApiService.getUserData();
+      final currentUserId = userData?['_id']?.toString() ?? '';
+
+      // Determinar quién es el otro usuario
+      final reportAuthorId = conversation['reportAuthorId']['_id']?.toString() ?? '';
+      final isAuthor = currentUserId == reportAuthorId;
+      final otherUser = isAuthor
+          ? conversation['interestedUserId']
+          : conversation['reportAuthorId'];
+
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ConversationPage(
+              conversationId: conversation['_id'],
+              otherUserName: '${otherUser['name']} ${otherUser['lastName']}',
+              otherUserProfileImage: otherUser['profileImage'],
+              reportTitle: conversation['reportId']['title'],
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    // No existe conversación, mostrar diálogo para crear una
+    final messageController = TextEditingController();
+    bool isSending = false;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          contentPadding: EdgeInsets.zero,
+          content: Container(
+            width: MediaQuery.of(context).size.width * 0.85,
+            constraints: const BoxConstraints(maxHeight: 500),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFD32F2F),
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.message,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Contactar',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        onPressed: () => Navigator.pop(dialogContext),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Usuario info
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      ProfileAvatar(
+                        profileImageBase64: userProfileImage,
+                        radius: 40,
+                        borderColor: const Color(0xFFD32F2F),
+                        borderWidth: 3,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        userName,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Miembro de la comunidad',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Campo de mensaje
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: TextField(
+                          controller: messageController,
+                          maxLines: 4,
+                          decoration: const InputDecoration(
+                            hintText:
+                                'Escribe tu mensaje sobre el objeto...',
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.all(16),
+                            hintStyle: TextStyle(fontSize: 14),
+                          ),
+                          textCapitalization: TextCapitalization.sentences,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Botón enviar
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: isSending
+                              ? null
+                              : () async {
+                                  final message =
+                                      messageController.text.trim();
+                                  if (message.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                            'Por favor escribe un mensaje'),
+                                        backgroundColor: Colors.orange,
+                                      ),
+                                    );
+                                    return;
+                                  }
+
+                                  setDialogState(() {
+                                    isSending = true;
+                                  });
+
+                                  // Crear conversación
+                                  final result =
+                                      await ApiService.createConversation(
+                                    reportId: widget.report['_id'],
+                                    initialMessage: message,
+                                  );
+
+                                  if (!mounted) return;
+
+                                  if (result['success']) {
+                                    Navigator.pop(dialogContext);
+
+                                    // Actualizar el estado para mostrar "Ver Chat"
+                                    setState(() {
+                                      _conversationExists = true;
+                                    });
+
+                                    // Navegar a la página de conversación
+                                    final conversation = result['data'];
+                                    final userData =
+                                        await ApiService.getUserData();
+                                    final currentUserId = userData?['_id']?.toString() ?? '';
+
+                                    // Determinar quién es el otro usuario
+                                    final reportAuthorId = conversation['reportAuthorId']['_id']?.toString() ?? '';
+                                    final isAuthor = currentUserId == reportAuthorId;
+                                    final otherUser = isAuthor
+                                        ? conversation['interestedUserId']
+                                        : conversation['reportAuthorId'];
+
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => ConversationPage(
+                                          conversationId: conversation['_id'],
+                                          otherUserName:
+                                              '${otherUser['name']} ${otherUser['lastName']}',
+                                          otherUserProfileImage:
+                                              otherUser['profileImage'],
+                                          reportTitle:
+                                              conversation['reportId']['title'],
+                                        ),
+                                      ),
+                                    );
+                                  } else {
+                                    setDialogState(() {
+                                      isSending = false;
+                                    });
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(result['message'] ??
+                                            'Error al enviar mensaje'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFD32F2F),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: isSending
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.send, size: 18),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Enviar mensaje',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isLost = widget.report['category'] == 'lost';
@@ -145,11 +461,23 @@ class _ObjectDetailPageState extends State<ObjectDetailPage> {
 
     // Usuario information
     final userId = widget.report['userId'];
-    final userName = userId != null && userId is Map
-        ? '${userId['name']} ${userId['lastName']}'
-        : 'Usuario UTALCA';
-    final userProfileImage =
-        userId != null && userId is Map ? userId['profileImage'] : null;
+    String userName;
+    String? userProfileImage;
+    
+    // Si es el propio reporte del usuario Y ya tenemos los datos cargados
+    if (_isOwnReport && _currentUserName != null) {
+      userName = _currentUserName!;
+      userProfileImage = _currentUserProfileImage;
+    } else if (userId != null && userId is Map) {
+      // Si userId es un objeto Map con los datos completos del usuario
+      userName = '${userId['name']} ${userId['lastName']}';
+      userProfileImage = userId['profileImage'];
+    } else {
+      // Fallback: Si es propio reporte pero aún no tenemos los datos, mostrar "Tú"
+      // Si no es propio reporte y no hay datos, mostrar "Usuario UTALCA"
+      userName = _isOwnReport ? 'Tú' : 'Usuario UTALCA';
+      userProfileImage = null;
+    }
 
     final audioUrl = widget.report['audioUrl'];
     final hasAudio = audioUrl != null && audioUrl.toString().isNotEmpty;
@@ -673,55 +1001,69 @@ class _ObjectDetailPageState extends State<ObjectDetailPage> {
             ),
           ),
           const SizedBox(height: 20),
-          // Botón de contactar
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Row(
-                        children: [
-                          Icon(Icons.message, color: Colors.white),
-                          SizedBox(width: 12),
-                          Text('Función de mensajería próximamente'),
-                        ],
+          // Botón de contactar (solo si no es el propio reporte)
+          if (!_isOwnReport)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: _isCheckingConversation
+                    ? ElevatedButton(
+                        onPressed: null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFD32F2F),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 2,
+                          disabledBackgroundColor: Colors.grey.shade400,
+                        ),
+                        child: const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        ),
+                      )
+                    : ElevatedButton(
+                        onPressed: _showContactDialog,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFD32F2F),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 2,
+                          shadowColor: const Color(0xFFD32F2F).withOpacity(0.3),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              _conversationExists ? Icons.chat : Icons.message,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              _conversationExists ? 'Ver Chat' : 'Contactar',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      backgroundColor: Color(0xFFD32F2F),
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFD32F2F),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 2,
-                  shadowColor: const Color(0xFFD32F2F).withOpacity(0.3),
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.message, size: 20),
-                    SizedBox(width: 10),
-                    Text(
-                      'Contactar',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
-                ),
               ),
             ),
-          ),
-          const SizedBox(height: 30),
+          if (!_isOwnReport) const SizedBox(height: 30),
+          if (_isOwnReport) const SizedBox(height: 20),
           // Footer
           Column(
             children: [
