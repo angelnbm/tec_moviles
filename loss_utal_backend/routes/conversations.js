@@ -249,40 +249,49 @@ router.post('/:id/messages', auth, async (req, res) => {
 
     // --- LÓGICA DE NOTIFICACIÓN ---
     
-    // Determinar el destinatario (el que NO es el remitente)
-    const recipientId = conversation.reportAuthorId.toString() === req.user.id 
-      ? conversation.interestedUserId 
-      : conversation.reportAuthorId;
+    try {
+      // Determinar el destinatario (el que NO es el remitente)
+      // Usamos 'conversation' original porque tiene los IDs sin poblar (ObjectId)
+      const recipientId = conversation.reportAuthorId.toString() === req.user.id 
+        ? conversation.interestedUserId 
+        : conversation.reportAuthorId;
 
-    // Buscar al usuario destinatario para obtener su token
-    const User = require('../models/User'); // Asegúrate de importar el modelo
-    const recipient = await User.findById(recipientId);
+      // Buscar al usuario destinatario para obtener su token
+      const User = require('../models/User'); 
+      const recipient = await User.findById(recipientId);
 
-    if (recipient && recipient.fcmToken) {
-      const sender = await User.findById(req.user.id);
-      
-      const messagePayload = {
-        notification: {
-          title: `Nuevo mensaje de ${sender.name}`,
-          body: message,
-        },
-        data: {
-          click_action: 'FLUTTER_NOTIFICATION_CLICK',
-          type: 'chat_message',
-          conversationId: conversation._id.toString(),
-          otherUserName: `${sender.name} ${sender.lastName}`,
-          reportTitle: conversation.reportId.title,
-          
-        },
-        token: recipient.fcmToken
-      };
+      if (recipient && recipient.fcmToken) {
+        const sender = await User.findById(req.user.id);
+        
+        // CORRECCIÓN: Usamos updatedConversation para obtener el título
+        // conversation.reportId es solo un ID, updatedConversation.reportId es el objeto completo
+        const reportTitle = updatedConversation.reportId ? updatedConversation.reportId.title : 'Reporte';
 
-      try {
+        const messagePayload = {
+          notification: {
+            title: `Nuevo mensaje de ${sender.name}`,
+            body: message,
+          },
+          data: {
+            click_action: 'FLUTTER_NOTIFICATION_CLICK',
+            type: 'chat_message',
+            conversationId: conversation._id.toString(),
+            otherUserName: `${sender.name} ${sender.lastName}`,
+            reportTitle: String(reportTitle), // Asegurar que sea string
+          },
+          token: recipient.fcmToken
+        };
+
+        console.log(`Intentando enviar notificación a: ${recipient.email}`);
         await admin.messaging().send(messagePayload);
-      } catch (error) {
-        console.error('Error enviando notificación FCM:', error);
+        console.log('Notificación enviada correctamente');
+      } else {
+        console.log(`No se envió notificación a ${recipient ? recipient.email : 'desconocido'}: Sin token FCM`);
       }
+    } catch (error) {
+      console.error('Error en lógica de notificaciones:', error);
     }
+    // -----------------------------
 
     res.json(updatedConversation);
   } catch (err) {
