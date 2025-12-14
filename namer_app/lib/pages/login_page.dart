@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:namer_app/pages/login_form_page.dart';
 import 'package:namer_app/pages/main_page.dart';
+import 'package:namer_app/pages/settings_page.dart';
 import 'package:namer_app/services/api_service.dart';
 import 'package:namer_app/services/biometric_service.dart';
 
@@ -52,61 +53,64 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  Future<void> _showSettingsDialog(BuildContext context) async {
-    final TextEditingController urlController =
-        TextEditingController(text: ApiService.baseUrl);
-
-    return showDialog<void>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('Configurar URL del Servidor'),
-          content: TextField(
-            controller: urlController,
-            decoration: const InputDecoration(
-              labelText: 'URL Base de la API',
-              hintText: 'http://192.168.1.100:5000/api',
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Cancelar'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
-            ),
-            ElevatedButton(
-              child: const Text('Guardar'),
-              onPressed: () async {
-                await ApiService.setBaseUrl(urlController.text);
-                Navigator.of(dialogContext).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('URL actualizada a: ${urlController.text}'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings, color: Colors.grey),
-            onPressed: () => _showSettingsDialog(context),
-            tooltip: 'Configuración',
+        backgroundColor: const Color(0xFFD32F2F),
+        elevation: 4,
+        shadowColor: Colors.red.withOpacity(0.4),
+        leading: Container(
+          margin: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(8),
           ),
-        ],
+          child: IconButton(
+            icon: const Icon(Icons.settings, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsPage()),
+              );
+            },
+            tooltip: 'Configuración',
+            iconSize: 22,
+          ),
+        ),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              height: 32,
+              width: 32,
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 4,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: Image.asset('assets/images/logo.png'),
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              '¡BIENVENIDO!',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+        centerTitle: true,
       ),
       body: Container(
         decoration: BoxDecoration(

@@ -32,6 +32,7 @@ class _NewReportPageState extends State<NewReportPage> {
   final FlutterSoundRecorder _audioRecorder = FlutterSoundRecorder();
   final ap.AudioPlayer _audioPlayer = ap.AudioPlayer();
   String? _audioPath;
+  String? _tempAudioPath;
   bool _isRecording = false;
   bool _isPlaying = false;
   bool _isRecorderInitialized = false;
@@ -43,6 +44,8 @@ class _NewReportPageState extends State<NewReportPage> {
   StreamSubscription<Duration>? _positionSubscription;
   StreamSubscription<ap.PlayerState>? _playerStateSubscription;
   StreamSubscription<Duration>? _durationSubscription;
+  GoogleMapController? _locationMapController;
+  LatLng? _selectedLocationLatLng;
 
   @override
   void initState() {
@@ -51,7 +54,6 @@ class _NewReportPageState extends State<NewReportPage> {
     _setupAudioListeners();
   }
 
-  // NUEVO: Método separado para configurar los listeners
   void _setupAudioListeners() {
     // Escuchar cambios en el estado del reproductor
     _playerStateSubscription =
@@ -129,8 +131,11 @@ class _NewReportPageState extends State<NewReportPage> {
         _isRecording = true;
         _isPaused = false;
         _recordDuration = Duration.zero;
-        _audioPath = filePath;
+        _audioPath = null; // CAMBIO: No establecer _audioPath todavía
       });
+
+      // Guardar la ruta temporalmente
+      _tempAudioPath = filePath;
 
       _updateRecordingDuration();
       _showSnackBar('Grabación iniciada', Colors.green);
@@ -186,13 +191,14 @@ class _NewReportPageState extends State<NewReportPage> {
   Future<void> _stopRecording() async {
     if (!_isRecording) return;
 
+    setState(() {
+      _isRecording = false;
+      _isPaused = false;
+      _audioPath = _tempAudioPath;
+    });
+
     try {
       await _audioRecorder.stopRecorder();
-
-      setState(() {
-        _isRecording = false;
-        _isPaused = false;
-      });
 
       _showSnackBar(
           'Audio grabado: ${_formatDuration(_recordDuration)}', Colors.green);
@@ -269,6 +275,30 @@ class _NewReportPageState extends State<NewReportPage> {
     _showSnackBar('Audio eliminado', Colors.orange);
   }
 
+  void _updateSelectedLocation(String locationText) {
+    if (locationText.isNotEmpty) {
+      final coords = locationText.split(',');
+      if (coords.length == 2) {
+        final latitude = double.tryParse(coords[0].trim());
+        final longitude = double.tryParse(coords[1].trim());
+        if (latitude != null && longitude != null) {
+          setState(() {
+            _selectedLocationLatLng = LatLng(latitude, longitude);
+          });
+          if (_locationMapController != null) {
+            _locationMapController!.animateCamera(
+              CameraUpdate.newLatLngZoom(_selectedLocationLatLng!, 16),
+            );
+          }
+        }
+      }
+    } else {
+      setState(() {
+        _selectedLocationLatLng = null;
+      });
+    }
+  }
+
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
     final minutes = twoDigits(duration.inMinutes.remainder(60));
@@ -302,10 +332,12 @@ class _NewReportPageState extends State<NewReportPage> {
 
     try {
       locationData = await location.getLocation();
+      final locationText =
+          '${locationData.latitude}, ${locationData.longitude}';
       setState(() {
-        _locationController.text =
-            '${locationData.latitude}, ${locationData.longitude}';
+        _locationController.text = locationText;
       });
+      _updateSelectedLocation(locationText); // NUEVO
       _showSnackBar('Ubicación obtenida correctamente', Colors.green);
     } catch (e) {
       _showSnackBar('Error al obtener ubicación', Colors.red);
@@ -319,10 +351,12 @@ class _NewReportPageState extends State<NewReportPage> {
     );
 
     if (selectedLocation != null) {
+      final locationText =
+          '${selectedLocation.latitude}, ${selectedLocation.longitude}';
       setState(() {
-        _locationController.text =
-            '${selectedLocation.latitude}, ${selectedLocation.longitude}';
+        _locationController.text = locationText;
       });
+      _updateSelectedLocation(locationText);
     }
   }
 
@@ -484,11 +518,12 @@ class _NewReportPageState extends State<NewReportPage> {
       if (_audioPath != null) {
         audioBase64 = await _convertAudioToBase64();
       }
+
       final result = await ApiService.createReport(
         title: _titleController.text,
         description: _descriptionController.text,
         category: _selectedCategory == ReportCategory.found ? 'found' : 'lost',
-        location: 'Universidad de Talca', // You can make this more specific
+        location: 'Universidad de Talca',
         latitude: latitude,
         longitude: longitude,
         imageUrl: imageBase64,
@@ -797,6 +832,46 @@ class _NewReportPageState extends State<NewReportPage> {
                     onTap: _selectLocationOnMap,
                   ),
                   const SizedBox(height: 12),
+
+                  // NUEVO: Mostrar mapa cuando hay ubicación seleccionada
+                  if (_selectedLocationLatLng != null) ...[
+                    Container(
+                      height: 150,
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: GoogleMap(
+                        initialCameraPosition: CameraPosition(
+                          target: _selectedLocationLatLng!,
+                          zoom: 16,
+                        ),
+                        markers: {
+                          Marker(
+                            markerId: const MarkerId('selected-location'),
+                            position: _selectedLocationLatLng!,
+                            icon: BitmapDescriptor.defaultMarkerWithHue(
+                              BitmapDescriptor.hueRed,
+                            ),
+                          ),
+                        },
+                        onMapCreated: (controller) {
+                          _locationMapController = controller;
+                        },
+                        zoomControlsEnabled: false,
+                        mapToolbarEnabled: false,
+                        myLocationButtonEnabled: false,
+                        scrollGesturesEnabled: false,
+                        zoomGesturesEnabled: false,
+                        rotateGesturesEnabled: false,
+                        tiltGesturesEnabled: false,
+                      ),
+                    ),
+                  ],
+
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
@@ -859,7 +934,6 @@ class _NewReportPageState extends State<NewReportPage> {
                   const SizedBox(height: 20),
                   if (_selectedImageBytes != null)
                     Container(
-                      height: 200,
                       width: double.infinity,
                       margin: const EdgeInsets.only(bottom: 16),
                       decoration: BoxDecoration(
@@ -958,144 +1032,121 @@ class _NewReportPageState extends State<NewReportPage> {
                     ],
                   ),
                   const SizedBox(height: 20),
-                  if (_audioPath == null) ...[
-                    if (_isRecording) ...[
-                      // MODIFICADO: Nueva UI durante grabación con pausa
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
+                  if (_isRecording) ...[
+                    // UI de grabación
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: _isPaused
+                            ? Colors.orange.shade50
+                            : Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
                           color: _isPaused
-                              ? Colors.orange.shade50
-                              : Colors.red.shade50,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: _isPaused
-                                ? Colors.orange.shade200
-                                : Colors.red.shade200,
-                          ),
+                              ? Colors.orange.shade200
+                              : Colors.red.shade200,
                         ),
-                        child: Column(
-                          children: [
-                            Row(
-                              children: [
-                                // NUEVO: Botón de pausa/reanudar
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color:
-                                        _isPaused ? Colors.orange : Colors.red,
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: (_isPaused
-                                                ? Colors.orange
-                                                : Colors.red)
-                                            .withOpacity(0.3),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: IconButton(
-                                    icon: Icon(
-                                      _isPaused
-                                          ? Icons.play_arrow
-                                          : Icons.pause,
-                                      color: Colors.white,
-                                      size: 32,
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              // NUEVO: Botón de pausa/reanudar
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: _isPaused ? Colors.orange : Colors.red,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: (_isPaused
+                                              ? Colors.orange
+                                              : Colors.red)
+                                          .withOpacity(0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
                                     ),
-                                    onPressed: _togglePauseRecording,
-                                    tooltip: _isPaused ? 'Reanudar' : 'Pausar',
-                                  ),
+                                  ],
                                 ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          if (!_isPaused) ...[
-                                            Container(
-                                              width: 12,
-                                              height: 12,
-                                              decoration: const BoxDecoration(
-                                                color: Colors.red,
-                                                shape: BoxShape.circle,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                          ],
-                                          Text(
-                                            _isPaused ? 'Pausada' : 'Grabando',
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w600,
-                                              color: _isPaused
-                                                  ? Colors.orange.shade700
-                                                  : Colors.red,
+                                child: IconButton(
+                                  icon: Icon(
+                                    _isPaused ? Icons.play_arrow : Icons.pause,
+                                    color: Colors.white,
+                                    size: 32,
+                                  ),
+                                  onPressed: _togglePauseRecording,
+                                  tooltip: _isPaused ? 'Reanudar' : 'Pausar',
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        if (!_isPaused) ...[
+                                          Container(
+                                            width: 12,
+                                            height: 12,
+                                            decoration: const BoxDecoration(
+                                              color: Colors.red,
+                                              shape: BoxShape.circle,
                                             ),
                                           ),
+                                          const SizedBox(width: 8),
                                         ],
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        _formatDuration(_recordDuration),
-                                        style: TextStyle(
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.w600,
-                                          color: _isPaused
-                                              ? Colors.orange.shade700
-                                              : Colors.red,
+                                        Text(
+                                          _isPaused ? 'Pausada' : 'Grabando',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                            color: _isPaused
+                                                ? Colors.orange.shade700
+                                                : Colors.red,
+                                          ),
                                         ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _formatDuration(_recordDuration),
+                                      style: TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w600,
+                                        color: _isPaused
+                                            ? Colors.orange.shade700
+                                            : Colors.red,
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            // Botón de detener
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                onPressed: _stopRecording,
-                                icon: const Icon(Icons.stop, size: 20),
-                                label: const Text('Finalizar grabación'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.grey.shade700,
-                                  foregroundColor: Colors.white,
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 12),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          // Botón de detener
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: _stopRecording,
+                              icon: const Icon(Icons.stop, size: 20),
+                              label: const Text('Finalizar grabación'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.grey.shade700,
+                                foregroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                    ] else ...[
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: _startRecording,
-                          icon: const Icon(Icons.mic),
-                          label: const Text('Grabar audio'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFFD32F2F),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            side: const BorderSide(color: Color(0xFFD32F2F)),
                           ),
-                        ),
+                        ],
                       ),
-                    ],
-                  ] else ...[
-                    // Audio grabado
+                    ),
+                  ] else if (_audioPath != null) ...[
+                    // Audio grabado (reproducción)
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -1143,10 +1194,7 @@ class _NewReportPageState extends State<NewReportPage> {
                               ),
                               // MODIFICADO: Agregar GestureDetector para prevenir propagación de eventos
                               GestureDetector(
-                                onTap: () {
-                                  // Llamar directamente sin propagación
-                                  _deleteAudio();
-                                },
+                                onTap: _deleteAudio,
                                 child: Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
@@ -1179,8 +1227,24 @@ class _NewReportPageState extends State<NewReportPage> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    // REMOVIDO: Eliminar el botón "Regrabar audio" para evitar confusión
-                    // Después de borrar, el usuario simplemente puede presionar "Grabar audio" de nuevo
+                  ] else ...[
+                    // Botón para iniciar grabación
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _startRecording,
+                        icon: const Icon(Icons.mic),
+                        label: const Text('Grabar audio'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFFD32F2F),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          side: const BorderSide(color: Color(0xFFD32F2F)),
+                        ),
+                      ),
+                    ),
                   ],
                   const SizedBox(height: 8),
                   Text(
