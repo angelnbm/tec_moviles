@@ -123,4 +123,18 @@ router.put('/profile', auth, async (req, res) => {
   }
 });
 
+// Actualizar FCM Token
+router.post('/fcm-token', auth, async (req, res) => {
+  try {
+    const { token } = req.body;
+    console.log(`Guardando token FCM para usuario ${req.user.id}:`, token ? 'Token recibido' : 'Token vacío');
+    
+    await User.findByIdAndUpdate(req.user.id, { fcmToken: token });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error guardando token:', err);
+    res.status(500).json({ message: 'Error al guardar token' });
+  }
+});
+
 module.exports = router;
