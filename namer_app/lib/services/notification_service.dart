@@ -1,3 +1,4 @@
+import 'dart:convert'; // IMPORTANTE: Agregar para jsonEncode y jsonDecode
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -55,10 +56,16 @@ class NotificationService {
 
     await _localNotifications.initialize(
       initializationSettings,
+      // MANEJAR CLIC EN NOTIFICACIÓN LOCAL (APP ABIERTA)
       onDidReceiveNotificationResponse: (NotificationResponse response) {
         if (response.payload != null) {
-          // Manejar clic en notificación local (App en primer plano)
-          // Aquí necesitaríamos parsear el payload si lo guardamos como string
+          try {
+            // Decodificar el String JSON a Map
+            final Map<String, dynamic> data = jsonDecode(response.payload!);
+            _handleMessageData(data);
+          } catch (e) {
+            print('Error al procesar payload de notificación: $e');
+          }
         }
       },
     );
@@ -84,7 +91,8 @@ class NotificationService {
               priority: Priority.high,
             ),
           ),
-          payload: message.data.toString(), // Pasar datos al payload local
+          // IMPORTANTE: Convertir los datos a String JSON para pasarlos al payload
+          payload: jsonEncode(message.data), 
         );
       }
     });
@@ -99,11 +107,17 @@ class NotificationService {
     }
   }
 
+  // Wrapper para mensajes remotos (Background/Terminated)
   void _handleMessage(RemoteMessage message) {
-    if (message.data['type'] == 'chat_message') {
-      final conversationId = message.data['conversationId'];
-      final otherUserName = message.data['otherUserName'];
-      final reportTitle = message.data['reportTitle'];
+    _handleMessageData(message.data);
+  }
+
+  // Lógica centralizada de navegación
+  void _handleMessageData(Map<String, dynamic> data) {
+    if (data['type'] == 'chat_message') {
+      final conversationId = data['conversationId'];
+      final otherUserName = data['otherUserName'];
+      final reportTitle = data['reportTitle'];
 
       if (conversationId != null) {
         navigatorKey.currentState?.push(
@@ -112,7 +126,6 @@ class NotificationService {
               conversationId: conversationId,
               otherUserName: otherUserName ?? 'Usuario',
               reportTitle: reportTitle ?? 'Reporte',
-              // La imagen no viene en la notif, se cargará por defecto o null
               otherUserProfileImage: null, 
             ),
           ),
