@@ -666,4 +666,22 @@ class ApiService {
       return {'success': false, 'message': 'Error de conexión: $e'};
     }
   }
+
+  static Future<void> updateFcmToken(String token) async {
+    try {
+      final authToken = await getToken();
+      if (authToken == null) return;
+
+      await http.post(
+        Uri.parse('$baseUrl/auth/fcm-token'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': authToken,
+        },
+        body: jsonEncode({'token': token}),
+      );
+    } catch (e) {
+      print('Error actualizando FCM token: $e');
+    }
+  }
 }

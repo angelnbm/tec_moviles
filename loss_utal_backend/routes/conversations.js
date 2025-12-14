@@ -2,6 +2,15 @@ const express = require('express');
 const Conversation = require('../models/Conversation');
 const Report = require('../models/Report');
 const auth = require('../middleware/auth');
+const admin = require('firebase-admin');
+const serviceAccount = require('../serviceAccountKey.json');
+
+// Inicializar Firebase Admin
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+}
 
 const router = express.Router();
 
@@ -238,6 +247,43 @@ router.post('/:id/messages', auth, async (req, res) => {
       .populate('interestedUserId', 'name lastName email profileImage')
       .populate('reportId', 'title category imageUrl location');
 
+    // --- LÓGICA DE NOTIFICACIÓN ---
+    
+    // Determinar el destinatario (el que NO es el remitente)
+    const recipientId = conversation.reportAuthorId.toString() === req.user.id 
+      ? conversation.interestedUserId 
+      : conversation.reportAuthorId;
+
+    // Buscar al usuario destinatario para obtener su token
+    const User = require('../models/User'); // Asegúrate de importar el modelo
+    const recipient = await User.findById(recipientId);
+
+    if (recipient && recipient.fcmToken) {
+      const sender = await User.findById(req.user.id);
+      
+      const messagePayload = {
+        notification: {
+          title: `Nuevo mensaje de ${sender.name}`,
+          body: message,
+        },
+        data: {
+          click_action: 'FLUTTER_NOTIFICATION_CLICK',
+          type: 'chat_message',
+          conversationId: conversation._id.toString(),
+          otherUserName: `${sender.name} ${sender.lastName}`,
+          reportTitle: conversation.reportId.title,
+          
+        },
+        token: recipient.fcmToken
+      };
+
+      try {
+        await admin.messaging().send(messagePayload);
+      } catch (error) {
+        console.error('Error enviando notificación FCM:', error);
+      }
+    }
+
     res.json(updatedConversation);
   } catch (err) {
     console.error('Error al enviar mensaje:', err);
@@ -305,6 +351,17 @@ router.get('/unread/count', auth, async (req, res) => {
   } catch (err) {
     console.error('Error al obtener conteo de no leídos:', err);
     res.status(500).json({ message: 'Error en el servidor' });
+  }
+});
+
+// Actualizar FCM Token
+router.post('/fcm-token', auth, async (req, res) => {
+  try {
+    const { token } = req.body;
+    await User.findByIdAndUpdate(req.user.id, { fcmToken: token });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: 'Error al guardar token' });
   }
 });
 

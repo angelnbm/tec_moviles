@@ -11,3 +11,7 @@ npm-debug.log*
 
 # macOS
 .DS_Store
+
+# Firebase
+serviceAccountKey.json
+tecmoviles-*.json
