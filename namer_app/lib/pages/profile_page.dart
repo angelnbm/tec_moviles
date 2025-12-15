@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:namer_app/pages/login_page.dart';
 import 'package:namer_app/pages/edit_profile_page.dart';
 import 'package:namer_app/services/api_service.dart';
 import 'package:namer_app/widgets/profile_avatar.dart';
 import 'package:namer_app/services/biometric_service.dart';
+import 'package:namer_app/services/notification_service.dart'; // Asegúrate de importar esto
 
 class ProfilePage extends StatefulWidget {
   final Map<String, dynamic>? user;
@@ -17,12 +19,14 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   late Map<String, dynamic>? _currentUser;
   bool _isBiometricEnabled = false;
+  bool _areNotificationsEnabled = true; // Por defecto habilitada
 
   @override
   void initState() {
     super.initState();
     _currentUser = widget.user;
     _loadUserData();
+    _loadNotificationPreference(); // Cargar preferencia al iniciar
   }
 
   Future<void> _loadUserData() async {
@@ -70,6 +74,38 @@ class _ProfilePageState extends State<ProfilePage> {
       setState(() { _isBiometricEnabled = false; });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Inicio de sesión con huella desactivado.')),
+      );
+    }
+  }
+
+  // cargar la preferencia
+  Future<void> _loadNotificationPreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        // Si es null (primera vez), devuelve true. Si no, devuelve el valor guardado.
+        _areNotificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
+      });
+    }
+  }
+
+  // cambiar el estado
+  Future<void> _toggleNotifications(bool value) async {
+    // Actualizar UI inmediatamente
+    setState(() {
+      _areNotificationsEnabled = value;
+    });
+
+    // Llamar al servicio para manejar la lógica (Backend + SharedPreferences)
+    await NotificationService().setNotificationsEnabled(value);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(value ? 'Notificaciones activadas' : 'Notificaciones silenciadas'),
+          backgroundColor: value ? Colors.green : Colors.grey,
+          duration: const Duration(seconds: 1),
+        ),
       );
     }
   }
@@ -314,19 +350,29 @@ class _ProfilePageState extends State<ProfilePage> {
                     },
                   ),
                   const Divider(height: 1),
-                  _buildOptionTile(
-                    context: context,
-                    icon: Icons.notifications_outlined,
-                    title: 'Notificaciones',
-                    subtitle: 'Configura tus preferencias',
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Función próximamente disponible'),
-                          backgroundColor: Color(0xFFD32F2F),
-                        ),
-                      );
-                    },
+                  ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD32F2F).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.notifications_outlined, color: Color(0xFFD32F2F)),
+                    ),
+                    title: const Text(
+                      'Notificaciones',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: Text(
+                      _areNotificationsEnabled ? 'Habilitadas' : 'Silenciadas',
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                    ),
+                    trailing: Switch(
+                      value: _areNotificationsEnabled,
+                      onChanged: _toggleNotifications,
+                      activeColor: const Color(0xFFD32F2F),
+                    ),
                   ),
                 ],
               ),

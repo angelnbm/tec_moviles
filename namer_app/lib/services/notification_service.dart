@@ -1,9 +1,10 @@
-import 'dart:convert'; // IMPORTANTE: Agregar para jsonEncode y jsonDecode
+import 'dart:convert';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:namer_app/pages/conversation_page.dart';
 import 'package:namer_app/services/api_service.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // 1. Agregar importación
 
 // Necesario para manejar notificaciones en background
 @pragma('vm:entry-point')
@@ -33,16 +34,24 @@ class NotificationService {
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
       print('Permiso de notificaciones concedido');
       
-      // 2. Obtener Token y enviarlo al backend
-      String? token = await _firebaseMessaging.getToken();
-      if (token != null) {
-        print('FCM Token: $token');
-        await ApiService.updateFcmToken(token);
+      // 2. Verificar preferencia antes de enviar token
+      final prefs = await SharedPreferences.getInstance();
+      final areEnabled = prefs.getBool('notifications_enabled') ?? true;
+
+      if (areEnabled) {
+        String? token = await _firebaseMessaging.getToken();
+        if (token != null) {
+          print('FCM Token: $token');
+          await ApiService.updateFcmToken(token);
+        }
       }
 
       // Listener para refresco de token
-      _firebaseMessaging.onTokenRefresh.listen((newToken) {
-        ApiService.updateFcmToken(newToken);
+      _firebaseMessaging.onTokenRefresh.listen((newToken) async {
+        final prefs = await SharedPreferences.getInstance();
+        if (prefs.getBool('notifications_enabled') ?? true) {
+          ApiService.updateFcmToken(newToken);
+        }
       });
     }
 
@@ -74,7 +83,12 @@ class NotificationService {
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
     // App en primer plano
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
+      // 3. Verificar preferencia antes de mostrar notificación local
+      final prefs = await SharedPreferences.getInstance();
+      final areEnabled = prefs.getBool('notifications_enabled') ?? true;
+      if (!areEnabled) return;
+
       RemoteNotification? notification = message.notification;
       AndroidNotification? android = message.notification?.android;
 
@@ -91,7 +105,6 @@ class NotificationService {
               priority: Priority.high,
             ),
           ),
-          // IMPORTANTE: Convertir los datos a String JSON para pasarlos al payload
           payload: jsonEncode(message.data), 
         );
       }
@@ -131,6 +144,23 @@ class NotificationService {
           ),
         );
       }
+    }
+  }
+
+  // 4. Nuevo método para controlar el estado desde el Perfil
+  Future<void> setNotificationsEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('notifications_enabled', enabled);
+
+    if (enabled) {
+      // Si se activan, enviamos el token actual al backend
+      String? token = await _firebaseMessaging.getToken();
+      if (token != null) {
+        await ApiService.updateFcmToken(token);
+      }
+    } else {
+      // Si se desactivan, enviamos token vacío para que el backend deje de enviar
+      await ApiService.updateFcmToken('');
     }
   }
 }
