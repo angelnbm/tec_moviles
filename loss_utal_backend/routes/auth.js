@@ -3,8 +3,19 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
+const nodemailer = require('nodemailer');
+const crypto = require('crypto'); // Librería nativa de Node.js
 
 const router = express.Router();
+
+// Configuración del transporte de correo (GMAIL)
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
 
 //Registrar un usuario
 router.post('/register', async (req, res) => {
@@ -134,6 +145,96 @@ router.post('/fcm-token', auth, async (req, res) => {
   } catch (err) {
     console.error('Error guardando token:', err);
     res.status(500).json({ message: 'Error al guardar token' });
+  }
+});
+
+// 1. Solicitar recuperación (Enviar código)
+router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  try {
+    const user = await User.findOne({ email });
+
+    // Si el usuario no existe, respondemos éxito igual por seguridad (para no revelar correos)
+    if (!user) {
+      return res.json({ success: true, message: 'Si el correo existe, se envió un código.' });
+    }
+
+    // Generar código de 6 dígitos
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Guardar código y expiración (15 minutos)
+    user.resetPasswordToken = code;
+    user.resetPasswordExpires = Date.now() + 900000; // 15 min
+    await user.save();
+
+    // Enviar correo
+    const mailOptions = {
+      from: 'Soporte Loss UTALCA',
+      to: user.email,
+      subject: 'Recuperación de contraseña - Loss UTALCA',
+      text: `Tu código de recuperación es: ${code}\n\nEste código expira en 15 minutos.`
+    };
+
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.log(error);
+        // En producción, no devolver el error exacto al cliente
+      }
+    });
+
+    res.json({ success: true, message: 'Si el correo existe, se envió un código.' });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Error en el servidor' });
+  }
+});
+
+// 2. Verificar código
+router.post('/verify-code', async (req, res) => {
+  const { email, code } = req.body;
+  try {
+    const user = await User.findOne({ 
+      email, 
+      resetPasswordToken: code,
+      resetPasswordExpires: { $gt: Date.now() } // Verificar que no haya expirado
+    });
+
+    if (!user) {
+      return res.status(400).json({ success: false, message: 'Código inválido o expirado' });
+    }
+
+    res.json({ success: true, message: 'Código verificado' });
+  } catch (err) {
+    res.status(500).json({ message: 'Error en el servidor' });
+  }
+});
+
+// 3. Restablecer contraseña
+router.post('/reset-password', async (req, res) => {
+  const { email, code, newPassword } = req.body;
+  try {
+    const user = await User.findOne({ 
+      email, 
+      resetPasswordToken: code,
+      resetPasswordExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ success: false, message: 'Solicitud inválida o expirada' });
+    }
+
+    // Actualizar contraseña (el middleware pre-save del modelo se encargará de hashear)
+    user.password = newPassword;
+    user.resetPasswordToken = ''; // Limpiar token
+    user.resetPasswordExpires = null;
+    
+    await user.save();
+
+    res.json({ success: true, message: 'Contraseña actualizada correctamente' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Error al actualizar contraseña' });
   }
 });
 

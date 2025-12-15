@@ -4,6 +4,7 @@ import 'package:namer_app/pages/registration_form_page.dart';
 import 'package:namer_app/services/api_service.dart';
 import 'package:namer_app/services/biometric_service.dart';
 import 'package:namer_app/pages/profile_page.dart';
+import 'package:namer_app/pages/forgot_password_page.dart'; // Importar nueva página
 
 class LoginFormPage extends StatefulWidget {
   const LoginFormPage({super.key});
@@ -257,7 +258,28 @@ class _LoginFormPageState extends State<LoginFormPage> {
                       obscureText: _obscurePassword,
                       validator: (value) => value == null || value.isEmpty ? 'Campo requerido' : null,
                     ),
-                    const SizedBox(height: 30),
+                    
+                    
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const ForgotPasswordPage()),
+                          );
+                        },
+                        child: const Text(
+                          '¿Olvidaste tu contraseña?',
+                          style: TextStyle(
+                            color: Color(0xFFD32F2F),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 10), // Reducir un poco el espacio
                     // Botón de ingresar
                     SizedBox(
                       width: double.infinity,
